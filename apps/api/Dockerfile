@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-bookworm-slim AS base
+WORKDIR /app
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+
+# Install deps (workspace-aware)
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
+COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/
+COPY prisma/package.json prisma/schema.prisma ./prisma/
+RUN pnpm install --frozen-lockfile=false
+
+# Build
+FROM base AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/package.json ./
+COPY --from=deps /app/pnpm-workspace.yaml ./
+COPY --from=deps /app/tsconfig.base.json ./
+COPY packages ./packages
+COPY prisma ./prisma
+COPY apps/api ./apps/api
+# Generate Prisma client during build (NEVER at runtime)
+RUN pnpm --filter @uzeed/prisma generate
+RUN pnpm --filter @uzeed/shared build
+RUN pnpm --filter @uzeed/api build
+
+# Runtime
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/apps/api/dist ./dist
+COPY --from=build /app/apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
+EXPOSE 3001
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["node", "dist/index.cjs"]

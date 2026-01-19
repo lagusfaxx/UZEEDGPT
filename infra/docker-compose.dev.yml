@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uzeed
+      POSTGRES_PASSWORD: uzeed
+      POSTGRES_DB: uzeed
+    ports:
+      - "5432:5432"
+    volumes:
+      - uzeed_pg:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://uzeed:uzeed@db:5432/uzeed?schema=public
+      SESSION_SECRET: dev-session-secret-change-me
+      SESSION_COOKIE_NAME: uzeed_session
+      COOKIE_DOMAIN: ""
+      WEB_ORIGIN: http://localhost:3000
+      API_BASE_URL: http://localhost:3001
+      UPLOADS_DIR: uploads
+      KHIPU_RECEIVER_ID: "511091"
+      KHIPU_SECRET: "feadafee4f16d4950b1e407f360ef1e675e8c218"
+      KHIPU_NOTIFY_URL: http://localhost:3001/webhooks/khipu
+      KHIPU_RETURN_URL: http://localhost:3000/dashboard
+      KHIPU_CANCEL_URL: http://localhost:3000/dashboard
+      MEMBERSHIP_DAYS: "30"
+      MEMBERSHIP_PRICE_CLP: "4990"
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "dist/worker.cjs"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://uzeed:uzeed@db:5432/uzeed?schema=public
+      SESSION_SECRET: dev-session-secret-change-me
+      WEB_ORIGIN: http://localhost:3000
+      API_BASE_URL: http://localhost:3001
+      UPLOADS_DIR: uploads
+      KHIPU_RECEIVER_ID: "511091"
+      KHIPU_SECRET: "feadafee4f16d4950b1e407f360ef1e675e8c218"
+      KHIPU_NOTIFY_URL: http://localhost:3001/webhooks/khipu
+      KHIPU_RETURN_URL: http://localhost:3000/dashboard
+      KHIPU_CANCEL_URL: http://localhost:3000/dashboard
+      MEMBERSHIP_DAYS: "30"
+      MEMBERSHIP_PRICE_CLP: "4990"
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  uzeed_pg:

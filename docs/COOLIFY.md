@@ -1,0 +1,79 @@
+# Deploy UZEED en Coolify (click-by-click)
+
+> Objetivo: **2 servicios** (web + api) + **Postgres 17** + **worker** separado.
+
+## 0) Prerrequisitos
+- VPS Ubuntu 24.04 con Coolify funcionando
+- DNS:
+  - `A uzeed.cl -> VPS_IP`
+  - `A api.uzeed.cl -> VPS_IP`
+- SSL:
+  - Recomendado: Cloudflare Full Strict + Let's Encrypt en Coolify, o Let's Encrypt directo
+
+## 1) Crear la base de datos (Postgres 17)
+1. En Coolify → **Resources** → **New**
+2. Selecciona **PostgreSQL**
+3. Versión: **17**
+4. Nombre: `uzeed-db`
+5. Setea:
+   - DB: `uzeed`
+   - User/Pass seguros
+6. Crea la instancia.
+7. Copia el `DATABASE_URL` desde la UI (o arma):
+   - `postgresql://USER:PASS@HOST:5432/uzeed?schema=public`
+
+## 2) Service: API (api.uzeed.cl)
+1. **New Resource → Application**
+2. Source: tu repo GitHub (branch correcto)
+3. **Build Pack: Dockerfile**
+4. **Base Directory:** `/` (RAÍZ DEL REPO)
+5. **Dockerfile Path:** `apps/api/Dockerfile`
+6. Port: `3001`
+7. Domain: `https://api.uzeed.cl`
+8. Environment Variables (mínimas):
+   - `NODE_ENV=production`
+   - `DATABASE_URL=...`
+   - `SESSION_SECRET=...`
+   - `COOKIE_DOMAIN=.uzeed.cl`
+   - `WEB_ORIGIN=https://uzeed.cl`
+   - `API_BASE_URL=https://api.uzeed.cl`
+   - `UPLOADS_DIR=uploads`
+   - `KHIPU_RECEIVER_ID=511091`
+   - `KHIPU_SECRET=feadafee4f16d4950b1e407f360ef1e675e8c218`
+   - `KHIPU_NOTIFY_URL=https://api.uzeed.cl/webhooks/khipu`
+   - `KHIPU_RETURN_URL=https://uzeed.cl/dashboard`
+   - `KHIPU_CANCEL_URL=https://uzeed.cl/dashboard`
+   - `MEMBERSHIP_DAYS=30`
+   - `MEMBERSHIP_PRICE_CLP=4990`
+   - (SMTP opcional)
+9. Deploy.
+10. Verifica: `GET https://api.uzeed.cl/health` → `{ ok: true }`
+
+## 3) Service: WORKER (cron/email) — opción A
+1. Duplicar la app API (o nueva Application mismo repo)
+2. Base Directory: `/`
+3. Dockerfile: `apps/api/Dockerfile`
+4. **Command override:** `node dist/worker.cjs`
+5. NO expone dominios/puertos.
+6. Mismas env vars que API (al menos DATABASE_URL y SMTP si quieres email).
+
+## 4) Service: WEB (uzeed.cl)
+1. **New Resource → Application**
+2. Source: mismo repo/branch
+3. Build Pack: Dockerfile
+4. Base Directory: `/`
+5. Dockerfile Path: `apps/web/Dockerfile`
+6. Port: `3000`
+7. Domain: `https://uzeed.cl`
+8. Env vars:
+   - `NODE_ENV=production`
+   - `NEXT_PUBLIC_API_URL=https://api.uzeed.cl`
+9. Deploy.
+
+## 5) Checklist de producción
+- Cloudflare SSL mode: Full (Strict)
+- CORS: `WEB_ORIGIN=https://uzeed.cl`
+- Cookie Domain: `.uzeed.cl`
+- HTTPS en ambos dominios
+- Postgres accesible desde los contenedores
+- Webhook Khipu apunta a `https://api.uzeed.cl/webhooks/khipu`
