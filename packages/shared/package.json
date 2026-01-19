@@ -2,12 +2,12 @@
   "name": "@uzeed/shared",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/index.cjs",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.js"
     }
   },
   "files": [
