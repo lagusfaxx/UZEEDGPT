@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM node:20-bullseye-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
@@ -46,6 +44,7 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY --from=build /pnpm /pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
