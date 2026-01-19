@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM node:20-bullseye-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
