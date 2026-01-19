@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-bookworm-slim AS base
+FFROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -15,6 +15,7 @@ COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/
 COPY prisma/package.json prisma/schema.prisma ./prisma/
+RUN pnpm install --frozen-lockfile=false
 RUN pnpm install --frozen-lockfile=false --prod=false
 
 # Build
