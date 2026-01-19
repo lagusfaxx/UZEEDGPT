@@ -1,4 +1,6 @@
-FROM node:20-bookworm-slim AS base
+# syntax=docker/dockerfile:1
+
+FFROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -23,6 +25,7 @@ COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma/node_modules ./prisma/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
 COPY --from=deps /app/tsconfig.base.json ./
