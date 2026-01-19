@@ -5,7 +5,7 @@ set -e
 # Client must already exist from build stage.
 if [ -n "$DATABASE_URL" ]; then
   echo "[entrypoint] prisma migrate deploy"
-  ./node_modules/.bin/prisma migrate deploy
+  ./prisma/node_modules/.bin/prisma migrate deploy
 fi
 
 exec "$@"
