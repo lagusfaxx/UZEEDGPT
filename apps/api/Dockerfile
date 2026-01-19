@@ -22,6 +22,7 @@ FROM base AS build
 WORKDIR /app
 COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma/node_modules ./prisma/node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
 COPY --from=deps /app/tsconfig.base.json ./
