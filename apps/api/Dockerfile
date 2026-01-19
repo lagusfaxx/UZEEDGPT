@@ -4,21 +4,26 @@ FROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 
 # Install deps (workspace-aware)
 FROM base AS deps
 WORKDIR /app
+ENV NODE_ENV=development
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/
 COPY prisma/package.json prisma/schema.prisma ./prisma/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile=false --prod=false
 
 # Build
 FROM base AS build
 WORKDIR /app
+COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma/node_modules ./prisma/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
 COPY --from=deps /app/tsconfig.base.json ./
@@ -34,6 +39,9 @@ RUN pnpm --filter @uzeed/api build
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+COPY --from=build /pnpm /pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/apps/api/dist ./dist
