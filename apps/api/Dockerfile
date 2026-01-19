@@ -20,6 +20,7 @@ RUN pnpm install --frozen-lockfile=false --prod=false
 # Build
 FROM base AS build
 WORKDIR /app
+COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
@@ -36,6 +37,9 @@ RUN pnpm --filter @uzeed/api build
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+COPY --from=build /pnpm /pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/apps/api/dist ./dist
