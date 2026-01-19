@@ -1,6 +1,4 @@
-# syntax=docker/dockerfile:1
-
-FROM node:20-bookworm-slim AS base
+FROM node:20-bullseye-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -37,11 +35,12 @@ RUN pnpm --filter @uzeed/shared build
 RUN pnpm --filter @uzeed/api build
 
 # Runtime
-FROM node:20-bookworm-slim AS runtime
+FROM node:20-bullseye-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /pnpm /pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
