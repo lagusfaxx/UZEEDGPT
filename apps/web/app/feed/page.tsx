@@ -1,4 +1,16 @@
-author: { id: string; displayName: string };
+"use client";
+// Client page
+
+import { useEffect, useState } from "react";
+import { apiFetch, API_URL } from "../../lib/api";
+
+type FeedPost = {
+  id: string;
+  title: string;
+  body: string;
+  isPublic: boolean;
+  paywalled: boolean;
+  author: { id: string; displayName: string };
   createdAt: string;
   media: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
@@ -85,4 +97,4 @@ export default function FeedPage() {
                   ) : (
                     <video
                       key={m.id}
-                      control
+                      controls

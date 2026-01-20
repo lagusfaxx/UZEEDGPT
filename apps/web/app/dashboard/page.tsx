@@ -1,3 +1,6 @@
+"use client";
+// Client page
+
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/api";
 
