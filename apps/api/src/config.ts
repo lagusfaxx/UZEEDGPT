@@ -11,7 +11,7 @@ export const config = {
   port: Number(process.env.PORT || 3001),
   appUrl: required("APP_URL"),
   apiUrl: required("API_URL"),
-  corsOrigin: process.env.CORS_ORIGIN || required("APP_URL"),
+  corsOrigin: process.env.CORS_ORIGIN || process.env.WEB_ORIGIN || required("APP_URL"),
   databaseUrl: required("DATABASE_URL"),
   sessionSecret: required("SESSION_SECRET"),
   cookieDomain: process.env.COOKIE_DOMAIN,
