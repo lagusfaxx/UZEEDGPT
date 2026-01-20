@@ -22,7 +22,7 @@ khipuRouter.post("/payments/create", requireAuth, async (req, res) => {
   const created = await prisma.payment.create({
     data: {
       userId: user.id,
-      providerPaymentId: "pending",
+      providerPaymentId: `pending_${tx}`,
       transactionId: tx,
       status: "PENDING",
       amount,
