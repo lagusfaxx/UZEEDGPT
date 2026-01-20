@@ -19,7 +19,7 @@ export default function Nav() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    apiFetch<MeResponse>("/me")
+    apiFetch<MeResponse>("/auth/me")
       .then((r) => setMe(r.user))
       .catch(() => setMe(null))
       .finally(() => setLoaded(true));
@@ -27,7 +27,7 @@ export default function Nav() {
 
   async function logout() {
     try {
-      await apiFetch("/logout", { method: "POST" });
+      await apiFetch("/auth/logout", { method: "POST" });
     } finally {
       window.location.href = "/";
     }

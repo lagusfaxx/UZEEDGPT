@@ -34,49 +34,44 @@ export default function FeedPage() {
 
   return (
     <div className="grid gap-6">
-      <div className="card p-6">
-        <h1 className="text-2xl font-semibold">Feed</h1>
-        <p className="mt-2 text-sm text-white/70">
-          {data.hasMembership
-            ? "Tienes membresía activa. Disfruta el contenido completo."
-            : "Algunos posts están protegidos. Activa tu membresía para ver todo."}
-        </p>
-        {!data.hasMembership ? (
-          <div className="mt-4 flex gap-3 flex-wrap">
-            <a className="btn-primary" href="/dashboard">
-              Activar membresía
+      <div className="card p-6 md:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Feed</h1>
+            <p className="mt-1 text-sm text-white/70">
+              {data.hasMembership
+                ? "Membresía activa."
+                : "Desbloquea contenido premium con tu membresía."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <a className="btn-secondary" href="/dashboard">
+              {data.hasMembership ? "Ver membresía" : "Activar membresía"}
             </a>
-            <a className="btn-secondary" href="/login">
-              Ingresar
+            <a className="btn-secondary" href="/admin">
+              Subir contenido
             </a>
           </div>
-        ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4">
         {data.posts.map((p) => (
           <article key={p.id} className="card p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">{p.title}</h2>
-                <div className="mt-1 text-xs text-white/50">
-                  por {p.author.displayName} • {new Date(p.createdAt).toLocaleString("es-CL")}
-                  {p.paywalled ? " • protegido" : ""}
-                </div>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-center gap-3 text-xs text-white/50">
+                <span className="rounded-full bg-white/10 px-3 py-1 text-white/70">
+                  {p.isPublic ? "Público" : "Membresía"}
+                </span>
+                <span>{p.author.displayName}</span>
+                <span>•</span>
+                <span>{new Date(p.createdAt).toLocaleString("es-CL")}</span>
               </div>
-              {p.isPublic ? (
-                <span className="rounded-full bg-white/10 border border-white/10 px-3 py-1 text-xs text-white/70">
-                  Público
-                </span>
-              ) : (
-                <span className="rounded-full bg-white/10 border border-white/10 px-3 py-1 text-xs text-white/70">
-                  Membresía
-                </span>
-              )}
             </div>
+            <h2 className="mt-3 text-xl font-semibold">{p.title}</h2>
 
             <div className={p.paywalled ? "mt-4 relative" : "mt-4"}>
-              <p className={p.paywalled ? "text-white/70 blur-sm select-none" : "text-white/80"}>
+              <p className={p.paywalled ? "text-white/60 blur-sm select-none" : "text-white/80"}>
                 {p.body}
               </p>
               {p.paywalled ? (
