@@ -44,7 +44,7 @@ export default function FeedPage() {
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 max-w-3xl mx-auto w-full">
         {data.posts.map((p) => (
           <article key={p.id} className="card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
