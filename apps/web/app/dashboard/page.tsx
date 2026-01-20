@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const active = exp ? exp.getTime() > Date.now() : false;
 
   useEffect(() => {
-    apiFetch<MeResponse>("/me")
+    apiFetch<MeResponse>("/auth/me")
       .then((r) => {
         if (!r.user) window.location.href = "/login";
         else setMe(r.user);

@@ -6,6 +6,10 @@ export default function HomePage() {
       <section className="card p-8 md:p-10">
         <div className="grid gap-6 md:grid-cols-2 md:items-center">
           <div className="grid gap-4">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Plataforma lista para producción
+            </div>
             <h1 className="text-3xl md:text-4xl font-semibold leading-tight">
               Suscripción mensual, paywall y panel profesional para creadores en Chile.
             </h1>
