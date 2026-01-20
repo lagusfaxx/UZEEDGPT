@@ -21,9 +21,17 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(helmet());
 app.use(morgan("combined"));
+const allowedOrigins = env.WEB_ORIGIN.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: env.WEB_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS_NOT_ALLOWED"));
+    },
     credentials: true
   })
 );

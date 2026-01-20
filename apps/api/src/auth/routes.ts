@@ -1,12 +1,12 @@
 import { Router } from "express";
 import argon2 from "argon2";
 import { prisma } from "../db";
-import { LoginSchema, RegisterSchema } from "@uzeed/shared";
+import { loginInputSchema, registerInputSchema } from "@uzeed/shared";
 
 export const authRouter = Router();
 
 authRouter.post("/register", async (req, res) => {
-  const parsed = RegisterSchema.safeParse(req.body);
+  const parsed = registerInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
   const { email, password, displayName } = parsed.data;
@@ -25,7 +25,7 @@ authRouter.post("/register", async (req, res) => {
 });
 
 authRouter.post("/login", async (req, res) => {
-  const parsed = LoginSchema.safeParse(req.body);
+  const parsed = loginInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
   const { email, password } = parsed.data;
