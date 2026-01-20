@@ -8,17 +8,20 @@ RUN corepack enable
 
 FROM base AS deps
 WORKDIR /app
+ENV NODE_ENV=development
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/web/package.json apps/web/tsconfig.json apps/web/next.config.mjs ./apps/web/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile=false --prod=false
 
 FROM base AS build
 WORKDIR /app
+COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
 COPY --from=deps /app/tsconfig.base.json ./
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN pnpm --filter @uzeed/shared build
