@@ -48,7 +48,7 @@ adminRouter.post("/posts", async (req, res) => {
       authorId: req.session.userId!,
       title: parsed.data.title,
       body: parsed.data.body,
-      isPublished: parsed.data.isPublished
+      isPublic: parsed.data.isPublic
     }
   });
   return res.json({ post });
