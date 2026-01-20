@@ -13,21 +13,33 @@ feedRouter.get("/feed", async (req, res) => {
   }
 
   const posts = await prisma.post.findMany({
-    where: { isPublic: true },
     orderBy: { createdAt: "desc" },
     take: 50,
-    include: { media: true }
+    include: {
+      media: true,
+      author: { select: { id: true, displayName: true, username: true, avatarUrl: true, profileType: true } }
+    }
   });
 
   const payload = posts.map((p) => {
-    const paywalled = !active;
+    const paywalled = !p.isPublic && !active;
+    const author = p.author || {
+      id: "unknown",
+      displayName: "UZEED",
+      username: "uzeed",
+      avatarUrl: null,
+      profileType: "CREATOR"
+    };
     return {
       id: p.id,
       title: p.title,
       body: paywalled ? p.body.slice(0, 220) + "…" : p.body,
       createdAt: p.createdAt.toISOString(),
+      price: p.price,
+      isPublic: p.isPublic,
       media: paywalled ? [] : p.media.map((m) => ({ id: m.id, type: m.type, url: m.url })),
-      paywalled
+      paywalled,
+      author
     };
   });
 
@@ -35,8 +47,31 @@ feedRouter.get("/feed", async (req, res) => {
 });
 
 feedRouter.get("/dashboard", requireAuth, async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.session.userId! }, select: { membershipExpiresAt: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: req.session.userId! },
+    select: {
+      membershipExpiresAt: true,
+      shopTrialEndsAt: true,
+      profileType: true,
+      avatarUrl: true,
+      address: true,
+      phone: true,
+      displayName: true,
+      username: true
+    }
+  });
   const expiresAt = user?.membershipExpiresAt?.toISOString() || null;
   const active = !!(user?.membershipExpiresAt && user.membershipExpiresAt.getTime() > Date.now());
-  return res.json({ active, membershipExpiresAt: expiresAt });
+  const shopTrialEndsAt = user?.shopTrialEndsAt?.toISOString() || null;
+  return res.json({
+    active,
+    membershipExpiresAt: expiresAt,
+    shopTrialEndsAt,
+    profileType: user?.profileType,
+    avatarUrl: user?.avatarUrl,
+    address: user?.address,
+    phone: user?.phone,
+    displayName: user?.displayName,
+    username: user?.username
+  });
 });

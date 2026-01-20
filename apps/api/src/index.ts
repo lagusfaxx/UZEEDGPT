@@ -11,9 +11,14 @@ import path from "path";
 
 import { config } from "./config";
 import { authRouter } from "./auth/routes";
+import { ensureAdminUser } from "./auth/seedAdmin";
 import { feedRouter } from "./feed/routes";
 import { adminRouter } from "./admin/routes";
 import { khipuRouter } from "./khipu/routes";
+import { profileRouter } from "./profile/routes";
+import { servicesRouter } from "./services/routes";
+import { messagesRouter } from "./messages/routes";
+import { creatorRouter } from "./creator/routes";
 
 const app = express();
 
@@ -37,7 +42,7 @@ app.use(cookieParser());
 
 // JSON body, except for webhook where we need raw body for signature
 app.use((req, res, next) => {
-  if (req.path === "/webhooks/khipu") {
+  if (req.path.startsWith("/webhooks/khipu")) {
     express.raw({ type: "application/json" })(req, res, (err) => {
       if (err) return next(err);
       (req as any).rawBody = req.body;
@@ -82,12 +87,20 @@ app.use("/auth", authRouter);
 app.use("/", feedRouter);
 app.use("/admin", adminRouter);
 app.use("/", khipuRouter);
+app.use("/", profileRouter);
+app.use("/", servicesRouter);
+app.use("/", messagesRouter);
+app.use("/", creatorRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
 });
 
-app.listen(config.port, () => {
-  console.log(`[api] listening on :${config.port}`);
-});
+ensureAdminUser()
+  .catch((err) => console.error("[api] admin seed failed", err))
+  .finally(() => {
+    app.listen(config.port, () => {
+      console.log(`[api] listening on :${config.port}`);
+    });
+  });

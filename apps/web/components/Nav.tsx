@@ -8,9 +8,10 @@ type MeResponse = {
   user: {
     id: string;
     email: string;
-    displayName: string;
+    displayName: string | null;
     role: "USER" | "ADMIN";
     membershipExpiresAt: string | null;
+    profileType: "VIEWER" | "CREATOR" | "PROFESSIONAL" | "SHOP";
   } | null;
 };
 
@@ -45,15 +46,20 @@ export default function Nav() {
           <Link className="btn-secondary" href="/feed">
             Feed
           </Link>
+          <Link className="btn-secondary" href="/services">
+            Servicios
+          </Link>
 
           {!loaded ? null : me ? (
             <>
-              <Link className="btn-secondary" href="/admin">
-                Crear
-              </Link>
               <Link className="btn-secondary" href="/dashboard">
                 Dashboard
               </Link>
+              {me.profileType === "CREATOR" || me.profileType === "PROFESSIONAL" ? (
+                <Link className="btn-secondary" href="/studio">
+                  Crear
+                </Link>
+              ) : null}
               {me.role === "ADMIN" ? (
                 <Link className="btn-secondary" href="/admin">
                   Admin

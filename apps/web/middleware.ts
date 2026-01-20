@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPrefixes = ["/dashboard", "/admin", "/feed"]; // feed shows partial but keep public? We'll allow public feed. We'll only protect dashboard/admin.
+const protectedPrefixes = ["/dashboard", "/admin", "/studio", "/chat"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const needsAuth = pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+  const needsAuth = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
   if (!needsAuth) return NextResponse.next();
 
   const hasSession = Boolean(req.cookies.get("uzeed_session")?.value);
@@ -18,5 +18,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*"]
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/studio/:path*", "/chat/:path*"]
 };

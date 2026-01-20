@@ -39,13 +39,16 @@
    - `API_URL=https://api.uzeed.cl`
    - `CORS_ORIGIN=https://uzeed.cl,https://www.uzeed.cl`
    - `UPLOADS_DIR=uploads`
-   - `KHIPU_RECEIVER_ID=511091`
-   - `KHIPU_SECRET=feadafee4f16d4950b1e407f360ef1e675e8c218`
-   - `KHIPU_NOTIFY_URL=https://api.uzeed.cl/webhooks/khipu`
+   - `KHIPU_API_KEY=5c24de64-13fd-4f64-bdd4-acabe2c46bbb`
+   - `KHIPU_SUBSCRIPTION_NOTIFY_URL=https://api.uzeed.cl/webhooks/khipu/subscription`
+   - `KHIPU_CHARGE_NOTIFY_URL=https://api.uzeed.cl/webhooks/khipu/charge`
    - `KHIPU_RETURN_URL=https://uzeed.cl/dashboard`
    - `KHIPU_CANCEL_URL=https://uzeed.cl/dashboard`
    - `MEMBERSHIP_DAYS=30`
    - `MEMBERSHIP_PRICE_CLP=4990`
+   - `SHOP_MONTHLY_PRICE_CLP=10000`
+   - `ADMIN_EMAIL=admin@uzeed.cl`
+   - `ADMIN_PASSWORD=Automazdabxzx94`
    - (SMTP opcional)
 9. Deploy.
 10. Verifica: `GET https://api.uzeed.cl/health` → `{ ok: true }`
@@ -82,10 +85,12 @@
    - `NEXT_PUBLIC_API_URL=https://api.uzeed.cl`
 9. Deploy.
 
-### Acceso al panel Admin (para subir contenido)
-- Crea tu usuario desde `/register`.
-- En la base de datos, cambia el `role` del usuario a `ADMIN`.
-- Luego ingresa al sitio y usa el botón **Panel de contenido** en el Dashboard.
+### Acceso al panel Admin
+- El usuario admin se crea automáticamente al iniciar la API.
+- Credenciales por defecto:
+  - Email: `admin@uzeed.cl`
+  - Clave: `Automazdabxzx94`
+- Puedes sobrescribir con `ADMIN_EMAIL` y `ADMIN_PASSWORD`.
 
 ### Solución rápida a error de proxy "Host(``) ... empty args"
 - En Coolify → **Resources → Web app → Domains/Proxy**, elimina reglas con:
@@ -143,4 +148,6 @@ caddy_ingress_network=coolify
 - Cookie Domain: `.uzeed.cl`
 - HTTPS en ambos dominios
 - Postgres accesible desde los contenedores
-- Webhook Khipu apunta a `https://api.uzeed.cl/webhooks/khipu`
+- Webhook Khipu apunta a:
+  - `https://api.uzeed.cl/webhooks/khipu/subscription`
+  - `https://api.uzeed.cl/webhooks/khipu/charge`
