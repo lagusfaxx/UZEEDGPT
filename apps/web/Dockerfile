@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 ENV NODE_ENV=development
@@ -36,7 +34,7 @@ ENV PORT=3000
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=build /app/apps/web/.next/standalone ./
-COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build /app/apps/web/public ./apps/web/public
+COPY --from=build /app/apps/web/.next/static ./.next/static
+COPY --from=build /app/apps/web/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
