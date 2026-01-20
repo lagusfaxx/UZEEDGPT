@@ -82,6 +82,11 @@
    - `NEXT_PUBLIC_API_URL=https://api.uzeed.cl`
 9. Deploy.
 
+### Acceso al panel Admin (para subir contenido)
+- Crea tu usuario desde `/register`.
+- En la base de datos, cambia el `role` del usuario a `ADMIN`.
+- Luego ingresa al sitio y usa el botón **Panel de contenido** en el Dashboard.
+
 ### Solución rápida a error de proxy "Host(``) ... empty args"
 - En Coolify → **Resources → Web app → Domains/Proxy**, elimina reglas con:
   - `Host(\`\`) && PathPrefix(\`uzeed.cl\`)`

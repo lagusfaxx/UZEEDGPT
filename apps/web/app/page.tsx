@@ -14,8 +14,7 @@ export default function HomePage() {
               Suscripción mensual, paywall y panel profesional para creadores en Chile.
             </h1>
             <p className="text-white/70">
-              UZEED es una plataforma tipo OnlyFans orientada a Chile: membresías mensuales, feed protegido y pagos
-              exclusivamente vía Khipu.
+              Plataforma premium con membresías, feed protegido y pagos locales. Diseñada para escalar sin fricción.
             </p>
             <div className="flex gap-3 flex-wrap">
               <Link href="/register" className="btn-primary">
@@ -26,10 +25,9 @@ export default function HomePage() {
               </Link>
             </div>
             <ul className="mt-2 grid gap-2 text-sm text-white/70">
-              <li>• Sesiones seguras (cookies httpOnly)</li>
-              <li>• Paywall por membresía activa</li>
-              <li>• Admin panel para posts + media</li>
-              <li>• Webhook idempotente y verificado server-to-server</li>
+              <li>• Acceso por membresía y contenido protegido</li>
+              <li>• Panel de contenido para creadores</li>
+              <li>• Pagos locales con confirmación automática</li>
             </ul>
           </div>
 
@@ -53,7 +51,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="text-xs text-white/50">
-                Esto es un MVP de producción: backend-first, Docker reproducible, Postgres 17 + Prisma.
+                Experiencia cuidada para creadores y comunidades de pago.
               </div>
             </div>
           </div>

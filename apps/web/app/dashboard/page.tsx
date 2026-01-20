@@ -23,6 +23,7 @@ export default function DashboardPage() {
     return isNaN(d.getTime()) ? null : d;
   }, [me]);
   const active = exp ? exp.getTime() > Date.now() : false;
+  const isAdmin = me?.role === "ADMIN";
 
   useEffect(() => {
     apiFetch<MeResponse>("/auth/me")
@@ -74,6 +75,11 @@ export default function DashboardPage() {
               <a className="btn-secondary" href="/feed">
                 Ir al feed
               </a>
+              {isAdmin ? (
+                <a className="btn-secondary" href="/admin">
+                  Panel de contenido
+                </a>
+              ) : null}
             </div>
             <p className="mt-2 text-xs text-white/50">
               El pago se procesa en Khipu. La membresía se activa al confirmar el webhook.
