@@ -2,42 +2,41 @@
 
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
+ENV NODE_ENV=development
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-
-COPY pnpm-workspace.yaml package.json tsconfig.base.json pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/web/package.json apps/web/tsconfig.json apps/web/next.config.mjs ./apps/web/
-
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile=false --prod=false
 
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-
 COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
+COPY --from=deps /app/package.json ./
+COPY --from=deps /app/pnpm-workspace.yaml ./
+COPY --from=deps /app/tsconfig.base.json ./
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY packages ./packages
+COPY apps/web ./apps/web
 RUN pnpm --filter @uzeed/shared build
 RUN pnpm --filter @uzeed/web build
 
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV NODE_PATH=/app/apps/web/node_modules
 ENV PORT=3000
-
-# Standalone server
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=build /app/apps/web/.next/standalone ./
-
-# Next static assets MUST be at ./.next/static relative to server root
-COPY --from=build /app/apps/web/.next/static ./.next/static
-
-# Public MUST be at ./public relative to server root
-COPY --from=build /app/apps/web/public ./public
-
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
 EXPOSE 3000
 CMD ["node", "server.js"]
