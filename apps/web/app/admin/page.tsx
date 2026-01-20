@@ -31,13 +31,9 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false);
 
   async function load() {
-    const m = await apiFetch<MeResponse>("/me");
+    const m = await apiFetch<MeResponse>("/auth/me");
     if (!m.user) {
       window.location.href = "/login";
-      return;
-    }
-    if (m.user.role !== "ADMIN") {
-      window.location.href = "/dashboard";
       return;
     }
     setMe(m.user);
