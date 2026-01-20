@@ -98,16 +98,3 @@ export default function FeedPage() {
                     <video
                       key={m.id}
                       controls
-                      className="w-full rounded-xl border border-white/10"
-                      src={m.url.startsWith("http") ? m.url : `${API_URL}${m.url}`}
-                    />
-                  )
-                )}
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
