@@ -1,15 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { apiFetch, API_URL } from "../../lib/api";
-
-type FeedPost = {
-  id: string;
-  title: string;
-  body: string;
-  isPublic: boolean;
-  paywalled: boolean;
-  author: { id: string; displayName: string };
+author: { id: string; displayName: string };
   createdAt: string;
   media: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
@@ -96,17 +85,4 @@ export default function FeedPage() {
                   ) : (
                     <video
                       key={m.id}
-                      controls
-                      className="w-full rounded-xl border border-white/10"
-                      src={m.url.startsWith("http") ? m.url : `${API_URL}${m.url}`}
-                    />
-                  )
-                )}
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
+                      control
