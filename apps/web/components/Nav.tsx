@@ -48,6 +48,9 @@ export default function Nav() {
 
           {!loaded ? null : me ? (
             <>
+              <Link className="btn-secondary" href="/admin">
+                Crear
+              </Link>
               <Link className="btn-secondary" href="/dashboard">
                 Dashboard
               </Link>
