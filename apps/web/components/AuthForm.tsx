@@ -19,12 +19,12 @@ export default function AuthForm({ mode }: { mode: Mode }) {
 
     try {
       if (mode === "register") {
-        await apiFetch("/register", {
+        await apiFetch("/auth/register", {
           method: "POST",
           body: JSON.stringify({ email, password, displayName })
         });
       } else {
-        await apiFetch("/login", {
+        await apiFetch("/auth/login", {
           method: "POST",
           body: JSON.stringify({ email, password })
         });

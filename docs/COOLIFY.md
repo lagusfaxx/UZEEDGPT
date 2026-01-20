@@ -35,8 +35,9 @@
    - `DATABASE_URL=...`
    - `SESSION_SECRET=...`
    - `COOKIE_DOMAIN=.uzeed.cl`
-   - `WEB_ORIGIN=https://uzeed.cl`
-   - `API_BASE_URL=https://api.uzeed.cl`
+   - `APP_URL=https://uzeed.cl`
+   - `API_URL=https://api.uzeed.cl`
+   - `CORS_ORIGIN=https://uzeed.cl,https://www.uzeed.cl`
    - `UPLOADS_DIR=uploads`
    - `KHIPU_RECEIVER_ID=511091`
    - `KHIPU_SECRET=feadafee4f16d4950b1e407f360ef1e675e8c218`
@@ -48,6 +49,12 @@
    - (SMTP opcional)
 9. Deploy.
 10. Verifica: `GET https://api.uzeed.cl/health` → `{ ok: true }`
+11. Si el frontend muestra **Failed to fetch** y en la consola aparece
+    `net::ERR_CERT_AUTHORITY_INVALID`, el problema es el **certificado SSL del API**.
+    Solución rápida:
+    - Asegura que `api.uzeed.cl` tenga un certificado válido (Let's Encrypt en Coolify).
+    - En Cloudflare usa **SSL/TLS → Full (strict)** y activa **Always Use HTTPS**.
+    - Espera a que el certificado se emita y vuelve a probar `https://api.uzeed.cl/health`.
 
 ## 3) Service: WORKER (cron/email) — opción A
 1. Duplicar la app API (o nueva Application mismo repo)
@@ -65,10 +72,69 @@
 5. Dockerfile Path: `apps/web/Dockerfile`
 6. Port: `3000`
 7. Domain: `https://uzeed.cl`
+   - **Importante (Traefik/Coolify):** usa *solo* dominio en el rule de `Host`.
+     - ✅ `Host(\`uzeed.cl\`)`
+     - ❌ `Host(\`\`) && PathPrefix(\`uzeed.cl\`)` (provoca `empty args for matcher Host`)
+   - No agregues `PathPrefix` con el dominio ni `StripPrefix` con `uzeed.cl`/`www.uzeed.cl`.
+     Esos middlewares son para rutas (ej: `/api`), no para hostnames.
 8. Env vars:
    - `NODE_ENV=production`
    - `NEXT_PUBLIC_API_URL=https://api.uzeed.cl`
 9. Deploy.
+
+### Acceso al panel Admin (para subir contenido)
+- Crea tu usuario desde `/register`.
+- Luego ingresa al sitio y usa el botón **Panel de contenido** en el Dashboard.
+
+### Solución rápida a error de proxy "Host(``) ... empty args"
+- En Coolify → **Resources → Web app → Domains/Proxy**, elimina reglas con:
+  - `Host(\`\`) && PathPrefix(\`uzeed.cl\`)`
+  - `Host(\`\`) && PathPrefix(\`www.uzeed.cl\`)`
+- Deja solo reglas con `Host(\`uzeed.cl\`)` y `Host(\`www.uzeed.cl\`)`, sin `PathPrefix`.
+
+### Container Labels listos (Traefik)
+> Copia/pega estos labels en la sección de **Container Labels** del servicio web.
+> Están corregidos para evitar `Host(\`\`)` y no usan `PathPrefix`/`StripPrefix`.
+> Importante: cada label va en **una sola línea**. No los pegues en la misma línea
+> porque Traefik interpreta el valor completo como el nombre del middleware.
+
+**Texto listo para copiar/pegar (una línea por label):**
+
+```
+traefik.enable=true
+traefik.http.middlewares.gzip.compress=true
+traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+
+traefik.http.routers.web-http.entryPoints=http
+traefik.http.routers.web-http.rule=Host(`uzeed.cl`) || Host(`www.uzeed.cl`)
+traefik.http.routers.web-http.middlewares=redirect-to-https
+traefik.http.routers.web-http.service=web
+
+traefik.http.routers.web-https.entryPoints=https
+traefik.http.routers.web-https.rule=Host(`uzeed.cl`) || Host(`www.uzeed.cl`)
+traefik.http.routers.web-https.tls=true
+traefik.http.routers.web-https.middlewares=gzip
+traefik.http.routers.web-https.service=web
+
+traefik.http.services.web.loadbalancer.server.port=3000
+```
+
+### Container Labels listos (Caddy - opcional)
+> Solo si usas Caddy en lugar de Traefik.
+
+```
+caddy_0=uzeed.cl
+caddy_0.encode=zstd gzip
+caddy_0.reverse_proxy={{upstreams 3000}}
+caddy_0.header=-Server
+
+caddy_1=www.uzeed.cl
+caddy_1.encode=zstd gzip
+caddy_1.reverse_proxy={{upstreams 3000}}
+caddy_1.header=-Server
+
+caddy_ingress_network=coolify
+```
 
 ## 5) Checklist de producción
 - Cloudflare SSL mode: Full (Strict)
