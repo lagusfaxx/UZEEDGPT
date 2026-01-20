@@ -12,17 +12,21 @@ export default function LoginPage() {
         <AuthForm mode="login" />
       </div>
 
-      <div className="mt-4 text-sm text-white/60">
+      <div className="mt-4 flex items-center justify-between text-sm text-white/60">
         <Link href="/forgot-password" className="text-white underline">
           ¿Olvidaste tu contraseña?
         </Link>
-      </div>
-
-      <div className="mt-6 text-sm text-white/60">
-        ¿No tienes cuenta?{" "}
-        <Link href="/register" className="text-white underline">
+        <Link href="/register" className="text-white/80 underline">
           Crear cuenta
         </Link>
+      </div>
+
+      <div className="mt-6 text-xs text-white/50">
+        Si tienes problemas para ingresar, contáctanos en{" "}
+        <a className="text-white underline" href="mailto:soporte@uzeed.cl">
+          soporte@uzeed.cl
+        </a>
+        .
       </div>
     </div>
   );

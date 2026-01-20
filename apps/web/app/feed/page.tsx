@@ -1,15 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { apiFetch, API_URL } from "../../lib/api";
-
-type FeedPost = {
-  id: string;
-  title: string;
-  body: string;
-  isPublic: boolean;
-  paywalled: boolean;
-  author: { id: string; displayName: string };
+author: { id: string; displayName: string };
   createdAt: string;
   media: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
@@ -40,8 +29,8 @@ export default function FeedPage() {
             <h1 className="text-2xl font-semibold">Feed</h1>
             <p className="mt-1 text-sm text-white/70">
               {data.hasMembership
-                ? "Tu membresía está activa."
-                : "Explora el contenido y desbloquea con tu membresía."}
+                ? "Membresía activa."
+                : "Desbloquea contenido premium con tu membresía."}
             </p>
           </div>
           <div className="flex gap-2">
@@ -59,18 +48,16 @@ export default function FeedPage() {
         {data.posts.map((p) => (
           <article key={p.id} className="card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-xs text-white/50">
-                  <span>{new Date(p.createdAt).toLocaleString("es-CL")}</span>
-                  <span>•</span>
-                  <span>{p.author.displayName}</span>
-                </div>
-                <h2 className="mt-2 text-xl font-semibold">{p.title}</h2>
+              <div className="flex items-center gap-3 text-xs text-white/50">
+                <span className="rounded-full bg-white/10 px-3 py-1 text-white/70">
+                  {p.isPublic ? "Público" : "Membresía"}
+                </span>
+                <span>{p.author.displayName}</span>
+                <span>•</span>
+                <span>{new Date(p.createdAt).toLocaleString("es-CL")}</span>
               </div>
-              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/70">
-                {p.isPublic ? "Público" : "Membresía"}
-              </span>
             </div>
+            <h2 className="mt-3 text-xl font-semibold">{p.title}</h2>
 
             <div className={p.paywalled ? "mt-4 relative" : "mt-4"}>
               <p className={p.paywalled ? "text-white/60 blur-sm select-none" : "text-white/80"}>
@@ -98,17 +85,4 @@ export default function FeedPage() {
                   ) : (
                     <video
                       key={m.id}
-                      controls
-                      className="w-full rounded-xl border border-white/10"
-                      src={m.url.startsWith("http") ? m.url : `${API_URL}${m.url}`}
-                    />
-                  )
-                )}
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
+                      control
