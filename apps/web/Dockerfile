@@ -1,13 +1,21 @@
-FROM base AS deps
+# syntax=docker/dockerfile:1
+
+FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 ENV NODE_ENV=development
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/web/package.json apps/web/tsconfig.json apps/web/next.config.mjs ./apps/web/
 RUN pnpm install --frozen-lockfile=false --prod=false
 
-FROM base AS build
+FROM node:20-bookworm-slim AS build
 WORKDIR /app
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
 COPY --from=deps /pnpm /pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
