@@ -1,12 +1,12 @@
 import { Router } from "express";
 import argon2 from "argon2";
 import { prisma } from "../db";
-import { LoginSchema, RegisterSchema } from "@uzeed/shared";
+import { loginInputSchema, registerInputSchema } from "@uzeed/shared";
 
 export const authRouter = Router();
 
 authRouter.post("/register", async (req, res) => {
-  const parsed = RegisterSchema.safeParse(req.body);
+  const parsed = registerInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
   const { email, password, displayName } = parsed.data;
@@ -25,7 +25,7 @@ authRouter.post("/register", async (req, res) => {
 });
 
 authRouter.post("/login", async (req, res) => {
-  const parsed = LoginSchema.safeParse(req.body);
+  const parsed = loginInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
   const { email, password } = parsed.data;
@@ -51,20 +51,3 @@ authRouter.post("/login", async (req, res) => {
 
 authRouter.post("/logout", async (req, res) => {
   req.session.destroy((err) => {
-    if (err) return res.status(500).json({ error: "LOGOUT_FAILED" });
-    res.clearCookie("uzeed_session");
-    return res.json({ ok: true });
-  });
-});
-
-authRouter.get("/me", async (req, res) => {
-  if (!req.session.userId) return res.json({ user: null });
-  const user = await prisma.user.findUnique({
-    where: { id: req.session.userId },
-    select: { id: true, email: true, displayName: true, role: true, membershipExpiresAt: true }
-  });
-  if (!user) return res.json({ user: null });
-  return res.json({
-    user: { ...user, membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null }
-  });
-});
