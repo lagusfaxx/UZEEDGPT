@@ -36,10 +36,6 @@ export default function AdminPage() {
       window.location.href = "/login";
       return;
     }
-    if (m.user.role !== "ADMIN") {
-      window.location.href = "/dashboard";
-      return;
-    }
     setMe(m.user);
     const r = await apiFetch<ListResp>("/admin/posts");
     setPosts(r.posts);

@@ -12,6 +12,12 @@ export default function LoginPage() {
         <AuthForm mode="login" />
       </div>
 
+      <div className="mt-4 text-sm text-white/60">
+        <Link href="/forgot-password" className="text-white underline">
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </div>
+
       <div className="mt-6 text-sm text-white/60">
         ¿No tienes cuenta?{" "}
         <Link href="/register" className="text-white underline">

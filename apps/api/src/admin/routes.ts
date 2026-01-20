@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db";
-import { requireAdmin } from "../auth/middleware";
+import { requireAuth } from "../auth/middleware";
 import { CreatePostSchema } from "@uzeed/shared";
 import multer from "multer";
 import path from "path";
@@ -27,7 +27,7 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-adminRouter.use(requireAdmin);
+adminRouter.use(requireAuth);
 
 adminRouter.get("/posts", async (_req, res) => {
   const posts = await prisma.post.findMany({ orderBy: { createdAt: "desc" }, include: { media: true } });
