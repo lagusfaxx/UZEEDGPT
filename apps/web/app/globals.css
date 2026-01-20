@@ -8,28 +8,32 @@
 
 body {
   @apply bg-uzeed-950 text-white;
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(139, 92, 246, 0.25), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(14, 165, 233, 0.18), transparent 55%);
+  background-attachment: fixed;
 }
 
 .container {
-  @apply mx-auto max-w-5xl px-4;
+  @apply mx-auto max-w-6xl px-4;
 }
 
 .card {
-  @apply rounded-2xl bg-uzeed-900/60 border border-white/10 shadow-lg;
+  @apply rounded-2xl bg-uzeed-900/60 border border-white/10 shadow-lg shadow-black/20 backdrop-blur;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition;
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
 }
 
 .btn-primary {
-  @apply btn bg-white text-black hover:bg-white/90;
+  @apply btn bg-gradient-to-r from-white to-white/90 text-black hover:from-white hover:to-white;
 }
 
 .btn-secondary {
-  @apply btn bg-white/10 hover:bg-white/15 border border-white/10;
+  @apply btn bg-white/10 hover:bg-white/15 border border-white/10 text-white/90;
 }
 
 .input {
-  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none focus:ring-2 focus:ring-white/30;
+  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none focus:ring-2 focus:ring-white/30 placeholder:text-white/40;
 }

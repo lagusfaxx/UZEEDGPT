@@ -13,7 +13,7 @@ feedRouter.get("/feed", async (req, res) => {
   }
 
   const posts = await prisma.post.findMany({
-    where: { isPublished: true },
+    where: { isPublic: true },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: { media: true }
