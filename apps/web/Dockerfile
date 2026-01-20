@@ -1,5 +1,4 @@
 # syntax=docker/dockerfile:1
-
 FROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
@@ -8,10 +7,11 @@ RUN corepack enable
 
 FROM base AS deps
 WORKDIR /app
+ENV NODE_ENV=development
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 COPY apps/web/package.json apps/web/tsconfig.json apps/web/next.config.mjs ./apps/web/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile=false --prod=false
 
 FROM base AS build
 WORKDIR /app
