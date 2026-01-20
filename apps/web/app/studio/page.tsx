@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch, API_URL } from "../../lib/api";
 
 type MeResponse = {
-  user: { id: string; role: "USER" | "ADMIN"; displayName: string | null } | null;
+  user: { id: string; role: "USER" | "ADMIN"; displayName: string | null; profileType: string } | null;
 };
 
 type Post = {
@@ -18,12 +18,10 @@ type Post = {
 };
 
 type ListResp = { posts: Post[] };
-type StatsResp = { users: number; posts: number; payments: number };
 
-export default function AdminPage() {
+export default function StudioPage() {
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [stats, setStats] = useState<StatsResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -40,15 +38,9 @@ export default function AdminPage() {
       window.location.href = "/login";
       return;
     }
-    if (m.user.role !== "ADMIN") {
-      window.location.href = "/dashboard";
-      return;
-    }
     setMe(m.user);
-    const r = await apiFetch<ListResp>("/admin/posts");
+    const r = await apiFetch<ListResp>("/creator/posts");
     setPosts(r.posts);
-    const s = await apiFetch<StatsResp>("/admin/stats");
-    setStats(s);
   }
 
   useEffect(() => {
@@ -71,14 +63,14 @@ export default function AdminPage() {
       if (files) {
         Array.from(files).forEach((f) => form.append("files", f));
       }
-      const res = await fetch(`${API_URL}/admin/posts`, {
+      const res = await fetch(`${API_URL}/creator/posts`, {
         method: "POST",
         credentials: "include",
         body: form
       });
       if (!res.ok) {
         const t = await res.text().catch(() => "");
-        throw new Error(`ADMIN_CREATE_FAILED ${res.status}: ${t}`);
+        throw new Error(`CREATE_FAILED ${res.status}: ${t}`);
       }
       setTitle("");
       setBody("");
@@ -92,35 +84,19 @@ export default function AdminPage() {
     }
   }
 
-  if (loading) return <div className="text-white/70">Cargando admin...</div>;
+  if (loading) return <div className="text-white/70">Cargando studio...</div>;
   if (err) return <div className="text-red-200">{err}</div>;
   if (!me) return null;
 
   return (
     <div className="grid gap-6">
       <div className="card p-6">
-        <h1 className="text-2xl font-semibold">Admin</h1>
-        <p className="mt-1 text-sm text-white/70">Hola, {me.displayName || "Admin"}. Crea y gestiona posts.</p>
-        {stats ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/50">Usuarios</div>
-              <div className="text-xl font-semibold">{stats.users}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/50">Posts</div>
-              <div className="text-xl font-semibold">{stats.posts}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/50">Pagos</div>
-              <div className="text-xl font-semibold">{stats.payments}</div>
-            </div>
-          </div>
-        ) : null}
+        <h1 className="text-2xl font-semibold">Studio</h1>
+        <p className="mt-1 text-sm text-white/70">Hola, {me.displayName || "Creador"}.</p>
       </div>
 
       <div className="card p-6">
-        <h2 className="text-lg font-semibold">Crear post</h2>
+        <h2 className="text-lg font-semibold">Crear publicación</h2>
         <form onSubmit={createPost} className="mt-4 grid gap-4">
           <div className="grid gap-2">
             <label className="text-sm text-white/70">Título</label>
@@ -136,7 +112,7 @@ export default function AdminPage() {
             />
           </div>
           <div className="grid gap-2">
-            <label className="text-sm text-white/70">Precio (máx $5.000 CLP)</label>
+            <label className="text-sm text-white/70">Precio (máximo $5.000 CLP)</label>
             <input
               className="input"
               type="number"
@@ -161,7 +137,6 @@ export default function AdminPage() {
           <div className="grid gap-2">
             <label className="text-sm text-white/70">Media (imágenes/videos)</label>
             <input type="file" multiple onChange={(e) => setFiles(e.target.files)} />
-            <p className="text-xs text-white/50">Máx 10 archivos por post (50MB c/u).</p>
           </div>
 
           <button disabled={creating} className="btn-primary">
@@ -171,7 +146,7 @@ export default function AdminPage() {
       </div>
 
       <div className="card p-6">
-        <h2 className="text-lg font-semibold">Posts recientes</h2>
+        <h2 className="text-lg font-semibold">Publicaciones</h2>
         <div className="mt-4 grid gap-4">
           {posts.map((p) => (
             <div key={p.id} className="rounded-xl bg-white/5 border border-white/10 p-4">
@@ -181,7 +156,7 @@ export default function AdminPage() {
                   <div className="text-xs text-white/50">{new Date(p.createdAt).toLocaleString("es-CL")}</div>
                 </div>
                 <span className="rounded-full bg-white/10 border border-white/10 px-3 py-1 text-xs text-white/70">
-                  {p.isPublic ? "Público" : `Premium $${p.price.toLocaleString("es-CL")}`}
+                  {p.isPublic ? "Gratis" : `Premium $${p.price.toLocaleString("es-CL")}`}
                 </span>
               </div>
               <p className="mt-3 text-sm text-white/70">{p.body}</p>

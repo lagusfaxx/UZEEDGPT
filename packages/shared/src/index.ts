@@ -3,10 +3,26 @@ import { z } from "zod";
 export const Roles = z.enum(["USER", "ADMIN"]);
 export type Role = z.infer<typeof Roles>;
 
+export const ProfileTypes = z.enum(["VIEWER", "CREATOR", "PROFESSIONAL", "SHOP"]);
+export type ProfileType = z.infer<typeof ProfileTypes>;
+
+export const Genders = z.enum(["MALE", "FEMALE", "OTHER"]);
+export type Gender = z.infer<typeof Genders>;
+
+export const PreferenceGenders = z.enum(["MALE", "FEMALE", "ALL", "OTHER"]);
+export type PreferenceGender = z.infer<typeof PreferenceGenders>;
+
 export const registerInputSchema = z.object({
+  username: z.string().min(3).max(30),
+  phone: z.string().min(6).max(20),
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  displayName: z.string().min(2).max(50).optional()
+  displayName: z.string().min(2).max(50).optional(),
+  gender: Genders,
+  profileType: ProfileTypes,
+  preferenceGender: PreferenceGenders.optional(),
+  address: z.string().min(6).max(200),
+  acceptTerms: z.boolean().refine((v) => v === true, "Terms must be accepted")
 });
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 
@@ -22,7 +38,8 @@ export type MediaType = z.infer<typeof PostMediaType>;
 export const CreatePostSchema = z.object({
   title: z.string().min(1).max(120),
   body: z.string().min(1).max(20000),
-  isPublic: z.boolean().default(false)
+  isPublic: z.boolean().default(false),
+  price: z.number().int().min(0).max(5000).default(0)
 });
 export type CreatePostInput = z.infer<typeof CreatePostSchema>;
 
@@ -37,6 +54,10 @@ export type SafeUser = {
   id: string;
   email: string;
   displayName: string | null;
+  username: string;
+  profileType: ProfileType;
+  gender: Gender | null;
+  preferenceGender: PreferenceGender | null;
   role: Role;
   membershipExpiresAt: string | null;
 };
@@ -46,6 +67,7 @@ export type FeedPost = {
   title: string;
   body: string;
   createdAt: string;
+  price: number;
   media: { id: string; type: MediaType; url: string }[];
   paywalled: boolean;
 };

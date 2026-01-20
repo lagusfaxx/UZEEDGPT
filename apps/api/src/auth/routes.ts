@@ -5,23 +5,56 @@ import { loginInputSchema, registerInputSchema } from "@uzeed/shared";
 
 export const authRouter = Router();
 
+function addDays(base: Date, days: number): Date {
+  const d = new Date(base.getTime());
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
 authRouter.post("/register", async (req, res) => {
   const parsed = registerInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
-  const { email, password, displayName } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return res.status(409).json({ error: "EMAIL_IN_USE" });
+  const { email, password, displayName, username, phone, gender, profileType, preferenceGender, address } = parsed.data;
+  const existing = await prisma.user.findFirst({ where: { OR: [{ email }, { username }] } });
+  if (existing?.email === email) return res.status(409).json({ error: "EMAIL_IN_USE" });
+  if (existing?.username === username) return res.status(409).json({ error: "USERNAME_IN_USE" });
 
   const passwordHash = await argon2.hash(password);
+  const shopTrialEndsAt = profileType === "SHOP" ? addDays(new Date(), 30) : null;
   const user = await prisma.user.create({
-    data: { email, passwordHash, displayName: displayName || null, role: "USER" },
-    select: { id: true, email: true, displayName: true, role: true, membershipExpiresAt: true }
+    data: {
+      email,
+      username,
+      phone,
+      gender,
+      preferenceGender: preferenceGender || null,
+      profileType,
+      address,
+      termsAcceptedAt: new Date(),
+      passwordHash,
+      displayName: displayName || null,
+      shopTrialEndsAt,
+      role: "USER"
+    },
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      role: true,
+      membershipExpiresAt: true,
+      username: true,
+      profileType: true,
+      gender: true,
+      preferenceGender: true
+    }
   });
 
   req.session.userId = user.id;
   req.session.role = user.role;
-  return res.json({ user: { ...user, membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null } });
+  return res.json({
+    user: { ...user, membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null }
+  });
 });
 
 authRouter.post("/login", async (req, res) => {
@@ -43,6 +76,10 @@ authRouter.post("/login", async (req, res) => {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      username: user.username,
+      profileType: user.profileType,
+      gender: user.gender,
+      preferenceGender: user.preferenceGender,
       role: user.role,
       membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null
     }
@@ -61,7 +98,20 @@ authRouter.get("/me", async (req, res) => {
   if (!req.session.userId) return res.json({ user: null });
   const user = await prisma.user.findUnique({
     where: { id: req.session.userId },
-    select: { id: true, email: true, displayName: true, role: true, membershipExpiresAt: true }
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      role: true,
+      membershipExpiresAt: true,
+      username: true,
+      profileType: true,
+      gender: true,
+      preferenceGender: true,
+      avatarUrl: true,
+      address: true,
+      phone: true
+    }
   });
   if (!user) return res.json({ user: null });
   return res.json({

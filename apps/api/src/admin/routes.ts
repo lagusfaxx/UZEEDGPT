@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db";
-import { requireAuth } from "../auth/middleware";
+import { requireAdmin } from "../auth/middleware";
 import { CreatePostSchema } from "@uzeed/shared";
 import multer from "multer";
 import path from "path";
@@ -27,7 +27,16 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-adminRouter.use(requireAuth);
+adminRouter.use(requireAdmin);
+
+adminRouter.get("/stats", async (_req, res) => {
+  const [users, posts, payments] = await Promise.all([
+    prisma.user.count(),
+    prisma.post.count(),
+    prisma.payment.count()
+  ]);
+  return res.json({ users, posts, payments });
+});
 
 adminRouter.get("/posts", async (_req, res) => {
   const posts = await prisma.post.findMany({ orderBy: { createdAt: "desc" }, include: { media: true } });
@@ -39,8 +48,15 @@ adminRouter.get("/posts", async (_req, res) => {
   })) });
 });
 
-adminRouter.post("/posts", async (req, res) => {
-  const parsed = CreatePostSchema.safeParse(req.body);
+adminRouter.post("/posts", upload.array("files", 10), async (req, res) => {
+  const { title, body, isPublic, price } = req.body as Record<string, string>;
+  const payload = {
+    title,
+    body,
+    isPublic: isPublic === "true",
+    price: price ? Number(price) : 0
+  };
+  const parsed = CreatePostSchema.safeParse(payload);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
   const post = await prisma.post.create({
@@ -48,10 +64,21 @@ adminRouter.post("/posts", async (req, res) => {
       authorId: req.session.userId!,
       title: parsed.data.title,
       body: parsed.data.body,
-      isPublic: parsed.data.isPublic
+      isPublic: parsed.data.isPublic,
+      price: parsed.data.price
     }
   });
-  return res.json({ post });
+
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  const media = [];
+  for (const file of files) {
+    const mime = (file.mimetype || "").toLowerCase();
+    const type = mime.startsWith("video/") ? "VIDEO" : "IMAGE";
+    const url = storageProvider.publicUrl(file.filename);
+    media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
+  }
+
+  return res.json({ post: { ...post, media } });
 });
 
 adminRouter.put("/posts/:id", async (req, res) => {

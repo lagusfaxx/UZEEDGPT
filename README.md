@@ -1,6 +1,6 @@
 # UZEED
 
-Plataforma de suscripción mensual tipo OnlyFans para Chile (Khipu), con paywall, panel de administración y sesiones seguras.
+Plataforma de suscripción mensual tipo OnlyFans para Chile (Khipu), con paywall, perfiles, servicios y sesiones seguras.
 
 ## Estructura
 - `apps/web` Next.js 14 App Router (UI)

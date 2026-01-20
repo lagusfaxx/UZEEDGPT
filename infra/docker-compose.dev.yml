@@ -24,16 +24,21 @@ services:
       SESSION_SECRET: dev-session-secret-change-me
       SESSION_COOKIE_NAME: uzeed_session
       COOKIE_DOMAIN: ""
+      APP_URL: http://localhost:3000
+      API_URL: http://localhost:3001
       WEB_ORIGIN: http://localhost:3000
       API_BASE_URL: http://localhost:3001
       UPLOADS_DIR: uploads
-      KHIPU_RECEIVER_ID: "511091"
-      KHIPU_SECRET: "feadafee4f16d4950b1e407f360ef1e675e8c218"
-      KHIPU_NOTIFY_URL: http://localhost:3001/webhooks/khipu
+      KHIPU_API_KEY: "5c24de64-13fd-4f64-bdd4-acabe2c46bbb"
+      KHIPU_SUBSCRIPTION_NOTIFY_URL: http://localhost:3001/webhooks/khipu/subscription
+      KHIPU_CHARGE_NOTIFY_URL: http://localhost:3001/webhooks/khipu/charge
       KHIPU_RETURN_URL: http://localhost:3000/dashboard
       KHIPU_CANCEL_URL: http://localhost:3000/dashboard
       MEMBERSHIP_DAYS: "30"
       MEMBERSHIP_PRICE_CLP: "4990"
+      SHOP_MONTHLY_PRICE_CLP: "10000"
+      ADMIN_EMAIL: admin@uzeed.cl
+      ADMIN_PASSWORD: Automazdabxzx94
     ports:
       - "3001:3001"
     depends_on:
@@ -48,16 +53,21 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://uzeed:uzeed@db:5432/uzeed?schema=public
       SESSION_SECRET: dev-session-secret-change-me
+      APP_URL: http://localhost:3000
+      API_URL: http://localhost:3001
       WEB_ORIGIN: http://localhost:3000
       API_BASE_URL: http://localhost:3001
       UPLOADS_DIR: uploads
-      KHIPU_RECEIVER_ID: "511091"
-      KHIPU_SECRET: "feadafee4f16d4950b1e407f360ef1e675e8c218"
-      KHIPU_NOTIFY_URL: http://localhost:3001/webhooks/khipu
+      KHIPU_API_KEY: "5c24de64-13fd-4f64-bdd4-acabe2c46bbb"
+      KHIPU_SUBSCRIPTION_NOTIFY_URL: http://localhost:3001/webhooks/khipu/subscription
+      KHIPU_CHARGE_NOTIFY_URL: http://localhost:3001/webhooks/khipu/charge
       KHIPU_RETURN_URL: http://localhost:3000/dashboard
       KHIPU_CANCEL_URL: http://localhost:3000/dashboard
       MEMBERSHIP_DAYS: "30"
       MEMBERSHIP_PRICE_CLP: "4990"
+      SHOP_MONTHLY_PRICE_CLP: "10000"
+      ADMIN_EMAIL: admin@uzeed.cl
+      ADMIN_PASSWORD: Automazdabxzx94
     depends_on:
       - db
 

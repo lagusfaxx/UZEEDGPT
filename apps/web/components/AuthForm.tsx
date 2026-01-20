@@ -8,6 +8,13 @@ type Mode = "login" | "register";
 export default function AuthForm({ mode }: { mode: Mode }) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
+  const [gender, setGender] = useState("FEMALE");
+  const [profileType, setProfileType] = useState("VIEWER");
+  const [preferenceGender, setPreferenceGender] = useState("ALL");
+  const [address, setAddress] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +28,18 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       if (mode === "register") {
         await apiFetch("/auth/register", {
           method: "POST",
-          body: JSON.stringify({ email, password, displayName })
+          body: JSON.stringify({
+            email,
+            password,
+            displayName,
+            username,
+            phone,
+            gender,
+            profileType,
+            preferenceGender,
+            address,
+            acceptTerms
+          })
         });
       } else {
         await apiFetch("/auth/login", {
@@ -53,6 +71,20 @@ export default function AuthForm({ mode }: { mode: Mode }) {
         </div>
       ) : null}
 
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Nombre de usuario</label>
+          <input
+            className="input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="tuusuario"
+            required
+            minLength={3}
+          />
+        </div>
+      ) : null}
+
       <div className="grid gap-2">
         <label className="text-sm text-white/70">Email</label>
         <input
@@ -64,6 +96,68 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           required
         />
       </div>
+
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Teléfono</label>
+          <input
+            className="input"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+56 9 1234 5678"
+            required
+          />
+        </div>
+      ) : null}
+
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Género</label>
+          <select className="input" value={gender} onChange={(e) => setGender(e.target.value)}>
+            <option value="FEMALE">Mujer</option>
+            <option value="MALE">Hombre</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </div>
+      ) : null}
+
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Tipo de perfil</label>
+          <select className="input" value={profileType} onChange={(e) => setProfileType(e.target.value)}>
+            <option value="VIEWER">Persona (ver y subir gratis)</option>
+            <option value="CREATOR">Creador (vende contenido)</option>
+            <option value="PROFESSIONAL">Profesional (contenido + servicios)</option>
+            <option value="SHOP">Tienda/Motel/Sexshop</option>
+          </select>
+        </div>
+      ) : null}
+
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Preferencia de género</label>
+          <select className="input" value={preferenceGender} onChange={(e) => setPreferenceGender(e.target.value)}>
+            <option value="ALL">Todos</option>
+            <option value="FEMALE">Mujer</option>
+            <option value="MALE">Hombre</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </div>
+      ) : null}
+
+      {mode === "register" ? (
+        <div className="grid gap-2">
+          <label className="text-sm text-white/70">Dirección</label>
+          <input
+            className="input"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Av. Providencia 1234, Santiago"
+            required
+          />
+          <p className="text-xs text-white/50">Se usa para el mapa de servicios y cercanía.</p>
+        </div>
+      ) : null}
 
       <div className="grid gap-2">
         <label className="text-sm text-white/70">Contraseña</label>
@@ -77,6 +171,21 @@ export default function AuthForm({ mode }: { mode: Mode }) {
         />
         <p className="text-xs text-white/50">Mínimo 8 caracteres.</p>
       </div>
+
+      {mode === "register" ? (
+        <label className="flex items-start gap-3 text-xs text-white/60">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={acceptTerms}
+            onChange={(e) => setAcceptTerms(e.target.checked)}
+            required
+          />
+          <span>
+            Acepto los términos y condiciones y entiendo los descargos legales de la plataforma.
+          </span>
+        </label>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
