@@ -89,6 +89,7 @@ async function handleExplore(req: any, res: any) {
       where: {
         subscriberId: userId,
         profileId: { in: authorIds },
+        status: "ACTIVE",
         expiresAt: { gt: new Date() }
       }
     })
