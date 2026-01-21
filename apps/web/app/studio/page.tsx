@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch, API_URL } from "../../lib/api";
 
 type MeResponse = {
@@ -38,8 +38,6 @@ export default function StudioPage() {
   const [editBody, setEditBody] = useState("");
   const [editPublic, setEditPublic] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   async function load() {
     const m = await apiFetch<MeResponse>("/auth/me");
     if (!m.user) {
@@ -57,16 +55,9 @@ export default function StudioPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Revoke object URLs when previews change (cleanup) to avoid memory leaks.
   useEffect(() => {
     return () => {
-      previews.forEach((preview) => {
-        try {
-          URL.revokeObjectURL(preview.url);
-        } catch {
-          /* ignore */
-        }
-      });
+      previews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
   }, [previews]);
 
@@ -93,14 +84,10 @@ export default function StudioPage() {
         const t = await res.text().catch(() => "");
         throw new Error(`CREATE_FAILED ${res.status}: ${t}`);
       }
-      // Clear form state and input element
       setTitle("");
       setBody("");
       setFiles(null);
-      // revoke previews then clear
-      previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
-      if (fileInputRef.current) fileInputRef.current.value = "";
       await load();
     } catch (e: any) {
       setErr(e?.message || "No se pudo crear el post");
@@ -110,15 +97,6 @@ export default function StudioPage() {
   }
 
   const handleFileSelect = (fileList: FileList | null) => {
-    // revoke any previous previews
-    previews.forEach((p) => {
-      try {
-        URL.revokeObjectURL(p.url);
-      } catch {
-        /* ignore */
-      }
-    });
-
     if (!fileList) {
       setFiles(null);
       setPreviews([]);
@@ -131,10 +109,6 @@ export default function StudioPage() {
     });
     if (!valid) {
       setErr("Solo se permiten imágenes o videos (máximo 100MB).");
-      // if invalid, also clear the file input visual selection
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setFiles(null);
-      setPreviews([]);
       return;
     }
     setFiles(fileList);
@@ -163,8 +137,7 @@ export default function StudioPage() {
     try {
       await apiFetch(`/creator/posts/${postId}`, {
         method: "PUT",
-        body: JSON.stringify({ title: editTitle, body: editBody, isPublic: editPublic }),
-        headers: { "Content-Type": "application/json" }
+        body: JSON.stringify({ title: editTitle, body: editBody, isPublic: editPublic })
       });
       await load();
       cancelEdit();
@@ -223,14 +196,7 @@ export default function StudioPage() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm text-white/70">Media (imágenes/videos)</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,video/*"
-              aria-label="Seleccionar imágenes o videos"
-              onChange={(e) => handleFileSelect(e.target.files)}
-            />
+            <input type="file" multiple accept="image/*,video/*" onChange={(e) => handleFileSelect(e.target.files)} />
             <p className="text-xs text-white/40">Formatos permitidos: JPG, PNG, MP4. Máximo 100MB.</p>
           </div>
           {previews.length ? (
