@@ -6,6 +6,7 @@ import { requireAuth } from "../auth/middleware";
 import { CreatePostSchema } from "@uzeed/shared";
 import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
+import { validateUploadedFile } from "../lib/uploads";
 
 export const creatorRouter = Router();
 creatorRouter.use(requireAuth);
@@ -83,8 +84,7 @@ creatorRouter.post("/creator/posts", upload.array("files", 10), async (req, res)
   const files = (req.files as Express.Multer.File[]) ?? [];
   const media = [];
   for (const file of files) {
-    const mime = (file.mimetype || "").toLowerCase();
-    const type = mime.startsWith("video/") ? "VIDEO" : "IMAGE";
+    const { type } = await validateUploadedFile(file, "image-or-video");
     const url = storageProvider.publicUrl(file.filename);
     media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
   }

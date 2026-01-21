@@ -5,17 +5,12 @@ import { prisma } from "../db";
 import { requireAuth } from "../auth/middleware";
 import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
-import { isBusinessPlanActive, nextSubscriptionExpiry } from "../lib/subscriptions";
+import { isBusinessPlanActive } from "../lib/subscriptions";
+import { validateUploadedFile } from "../lib/uploads";
 
 export const profileRouter = Router();
 
 const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
-
-const imageOnlyFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
-  const ok = (file.mimetype || "").toLowerCase().startsWith("image/");
-  if (!ok) return cb(new Error("INVALID_FILE_TYPE"));
-  return cb(null, true);
-};
 
 const storage = multer.diskStorage({
   destination: async (_req, _file, cb) => {
@@ -33,7 +28,16 @@ const storage = multer.diskStorage({
 const uploadImage = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: imageOnlyFilter
+  fileFilter: (_req, file, cb) => {
+    const ok = (file.mimetype || "").toLowerCase().startsWith("image/");
+    if (!ok) return cb(new Error("INVALID_FILE_TYPE"));
+    return cb(null, true);
+  }
+});
+
+const uploadMedia = multer({
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }
 });
 
 profileRouter.get("/profiles", async (req, res) => {
@@ -120,7 +124,8 @@ profileRouter.get("/profiles/:username", async (req, res) => {
     })
     : null;
   const isSubscribed =
-    !!subscription && subscription.expiresAt.getTime() > Date.now() || (viewerId && viewerId === profile.id);
+    (!!subscription && subscription.status === "ACTIVE" && subscription.expiresAt.getTime() > Date.now()) ||
+    (viewerId && viewerId === profile.id);
 
   const payload = posts.map((p) => {
     const paywalled = !p.isPublic && !isSubscribed;
@@ -138,6 +143,12 @@ profileRouter.get("/profiles/:username", async (req, res) => {
 
   const serviceItems = await prisma.serviceItem.findMany({
     where: { ownerId: profile.id },
+    orderBy: { createdAt: "desc" },
+    include: { media: true }
+  });
+
+  const gallery = await prisma.profileMedia.findMany({
+    where: { ownerId: profile.id },
     orderBy: { createdAt: "desc" }
   });
 
@@ -147,42 +158,13 @@ profileRouter.get("/profiles/:username", async (req, res) => {
     isOwner,
     subscriptionExpiresAt: subscription?.expiresAt.toISOString() || null,
     posts: payload,
-    serviceItems
+    serviceItems,
+    gallery
   });
 });
 
 profileRouter.post("/profiles/:username/subscribe", requireAuth, async (req, res) => {
-  const username = req.params.username;
-  const viewerId = req.session.userId!;
-  const profile = await prisma.user.findUnique({
-    where: { username },
-    select: {
-      id: true,
-      profileType: true,
-      subscriptionPrice: true
-    }
-  });
-  if (!profile) return res.status(404).json({ error: "NOT_FOUND" });
-  if (!["CREATOR", "PROFESSIONAL"].includes(profile.profileType)) {
-    return res.status(400).json({ error: "NOT_SUBSCRIBABLE" });
-  }
-  if (profile.id === viewerId) return res.status(400).json({ error: "SELF_SUBSCRIBE" });
-  const price = Math.max(100, Math.min(20000, profile.subscriptionPrice || 2500));
-
-  const expiresAt = nextSubscriptionExpiry();
-  const subscription = await prisma.profileSubscription.upsert({
-    where: { subscriberId_profileId: { subscriberId: viewerId, profileId: profile.id } },
-    update: { status: "ACTIVE", expiresAt, price },
-    create: { subscriberId: viewerId, profileId: profile.id, status: "ACTIVE", expiresAt, price }
-  });
-
-  return res.json({
-    subscription: {
-      id: subscription.id,
-      expiresAt: subscription.expiresAt.toISOString(),
-      price: subscription.price
-    }
-  });
+  return res.status(410).json({ error: "USE_BILLING_START" });
 });
 
 profileRouter.get("/profile/me", requireAuth, async (req, res) => {
@@ -221,7 +203,7 @@ profileRouter.put("/profile", requireAuth, async (req, res) => {
     select: { profileType: true }
   });
   if (!me) return res.status(404).json({ error: "NOT_FOUND" });
-  const canSetPrice = ["CREATOR", "PROFESSIONAL"].includes(me.profileType);
+  const canSetPrice = me.profileType === "CREATOR";
   const user = await prisma.user.update({
     where: { id: req.session.userId! },
     data: {
@@ -245,6 +227,7 @@ profileRouter.put("/profile", requireAuth, async (req, res) => {
 
 profileRouter.post("/profile/avatar", requireAuth, uploadImage.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "NO_FILE" });
+  await validateUploadedFile(req.file, "image");
   const url = storageProvider.publicUrl(req.file.filename);
   const user = await prisma.user.update({
     where: { id: req.session.userId! },
@@ -255,10 +238,42 @@ profileRouter.post("/profile/avatar", requireAuth, uploadImage.single("file"), a
 
 profileRouter.post("/profile/cover", requireAuth, uploadImage.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "NO_FILE" });
+  await validateUploadedFile(req.file, "image");
   const url = storageProvider.publicUrl(req.file.filename);
   const user = await prisma.user.update({
     where: { id: req.session.userId! },
     data: { coverUrl: url }
   });
   return res.json({ user });
+});
+
+profileRouter.get("/profile/media", requireAuth, async (req, res) => {
+  const media = await prisma.profileMedia.findMany({
+    where: { ownerId: req.session.userId! },
+    orderBy: { createdAt: "desc" }
+  });
+  return res.json({ media });
+});
+
+profileRouter.post("/profile/media", requireAuth, uploadMedia.array("files", 12), async (req, res) => {
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  if (!files.length) return res.status(400).json({ error: "NO_FILES" });
+  const media = [];
+  for (const file of files) {
+    const { type } = await validateUploadedFile(file, "image-or-video");
+    const url = storageProvider.publicUrl(file.filename);
+    media.push(
+      await prisma.profileMedia.create({
+        data: { ownerId: req.session.userId!, type, url }
+      })
+    );
+  }
+  return res.json({ media });
+});
+
+profileRouter.delete("/profile/media/:id", requireAuth, async (req, res) => {
+  const media = await prisma.profileMedia.findUnique({ where: { id: req.params.id } });
+  if (!media || media.ownerId !== req.session.userId!) return res.status(404).json({ error: "NOT_FOUND" });
+  await prisma.profileMedia.delete({ where: { id: media.id } });
+  return res.json({ ok: true });
 });
