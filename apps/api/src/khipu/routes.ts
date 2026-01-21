@@ -5,6 +5,7 @@ import { config } from "../config";
 import { requireAuth } from "../auth/middleware";
 import { createSubscription, createChargeIntent, getSubscription } from "./client";
 import { verifyKhipuSignature } from "./webhook";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const khipuRouter = Router();
 
@@ -14,7 +15,7 @@ function addDays(base: Date, days: number): Date {
   return d;
 }
 
-khipuRouter.post("/payments/subscribe", requireAuth, async (req, res) => {
+khipuRouter.post("/payments/subscribe", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!user) return res.status(404).json({ error: "USER_NOT_FOUND" });
 
@@ -40,24 +41,24 @@ khipuRouter.post("/payments/subscribe", requireAuth, async (req, res) => {
   });
 
   return res.json({ subscriptionId: created.subscriptionId, redirectUrl: created.redirectUrl });
-});
+}));
 
-khipuRouter.get("/payments/subscription/:id", requireAuth, async (req, res) => {
+khipuRouter.get("/payments/subscription/:id", requireAuth, asyncHandler(async (req, res) => {
   const subscription = await prisma.khipuSubscription.findUnique({ where: { subscriptionId: req.params.id } });
   if (!subscription || subscription.userId !== req.session.userId) return res.status(404).json({ error: "NOT_FOUND" });
   const remote = await getSubscription(req.params.id);
   return res.json({ subscription, remote });
-});
+}));
 
-khipuRouter.get("/payments/subscription", requireAuth, async (req, res) => {
+khipuRouter.get("/payments/subscription", requireAuth, asyncHandler(async (req, res) => {
   const subscription = await prisma.khipuSubscription.findFirst({
     where: { userId: req.session.userId! },
     orderBy: { createdAt: "desc" }
   });
   return res.json({ subscription });
-});
+}));
 
-khipuRouter.post("/payments/charge-intent", requireAuth, async (req, res) => {
+khipuRouter.post("/payments/charge-intent", requireAuth, asyncHandler(async (req, res) => {
   const { subscriptionId } = req.body as { subscriptionId?: string };
   if (!subscriptionId) return res.status(400).json({ error: "MISSING_SUBSCRIPTION_ID" });
   const subscription = await prisma.khipuSubscription.findUnique({ where: { subscriptionId } });
@@ -89,9 +90,9 @@ khipuRouter.post("/payments/charge-intent", requireAuth, async (req, res) => {
   });
 
   res.json({ paymentId: payment.id, providerPaymentId: payment.providerPaymentId });
-});
+}));
 
-khipuRouter.post("/webhooks/khipu/subscription", async (req, res) => {
+khipuRouter.post("/webhooks/khipu/subscription", asyncHandler(async (req, res) => {
   const rawBody: Buffer | undefined = (req as any).rawBody;
   const sig = req.header("x-khipu-signature");
   if (sig && rawBody) {
@@ -138,9 +139,9 @@ khipuRouter.post("/webhooks/khipu/subscription", async (req, res) => {
   }
 
   return res.json({ ok: true });
-});
+}));
 
-khipuRouter.post("/webhooks/khipu/charge", async (req, res) => {
+khipuRouter.post("/webhooks/khipu/charge", asyncHandler(async (req, res) => {
   const rawBody: Buffer | undefined = (req as any).rawBody;
   const sig = req.header("x-khipu-signature");
   if (sig && rawBody) {
@@ -165,4 +166,4 @@ khipuRouter.post("/webhooks/khipu/charge", async (req, res) => {
   });
 
   return res.json({ ok: true, status: "PAID" });
-});
+}));

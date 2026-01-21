@@ -7,7 +7,7 @@ if [ -n "$DATABASE_URL" ]; then
   case "$DATABASE_URL" in
     postgresql://*|postgres://*)
       echo "[entrypoint] prisma migrate deploy"
-      ./prisma/node_modules/.bin/prisma migrate deploy
+      ./prisma/node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma
       ;;
     *)
       echo "[entrypoint] DATABASE_URL is set but missing postgres protocol; skipping migrate."

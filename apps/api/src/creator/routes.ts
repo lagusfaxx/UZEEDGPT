@@ -7,11 +7,15 @@ import { CreatePostSchema } from "@uzeed/shared";
 import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
 import { validateUploadedFile } from "../lib/uploads";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const creatorRouter = Router();
 creatorRouter.use(requireAuth);
 
-const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const storageProvider = new LocalStorageProvider({
+  baseDir: config.storageDir,
+  publicPathPrefix: `${config.apiUrl.replace(/\/$/, "")}/uploads`
+});
 const mediaFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
   const mime = (file.mimetype || "").toLowerCase();
   if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
@@ -45,7 +49,7 @@ async function ensureCreator(userId: string) {
   return true;
 }
 
-creatorRouter.get("/creator/posts", async (req, res) => {
+creatorRouter.get("/creator/posts", asyncHandler(async (req, res) => {
   const ok = await ensureCreator(req.session.userId!);
   if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
 
@@ -55,9 +59,9 @@ creatorRouter.get("/creator/posts", async (req, res) => {
     include: { media: true }
   });
   return res.json({ posts });
-});
+}));
 
-creatorRouter.post("/creator/posts", upload.array("files", 10), async (req, res) => {
+creatorRouter.post("/creator/posts", upload.array("files", 10), asyncHandler(async (req, res) => {
   const ok = await ensureCreator(req.session.userId!);
   if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
 
@@ -88,11 +92,33 @@ creatorRouter.post("/creator/posts", upload.array("files", 10), async (req, res)
     const url = storageProvider.publicUrl(file.filename);
     media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
   }
+  const hasVideo = media.some((m) => m.type === "VIDEO");
+  if (hasVideo) {
+    await prisma.post.update({ where: { id: post.id }, data: { type: "VIDEO" } });
+  }
+
+  const subscriberIds = await prisma.profileSubscription.findMany({
+    where: {
+      profileId: req.session.userId!,
+      status: "ACTIVE",
+      expiresAt: { gt: new Date() }
+    },
+    select: { subscriberId: true }
+  });
+  if (subscriberIds.length) {
+    await prisma.notification.createMany({
+      data: subscriberIds.map((s) => ({
+        userId: s.subscriberId,
+        type: "POST_PUBLISHED",
+        data: { postId: post.id, creatorId: req.session.userId! }
+      }))
+    });
+  }
 
   return res.json({ post: { ...post, media } });
-});
+}));
 
-creatorRouter.put("/creator/posts/:id", async (req, res) => {
+creatorRouter.put("/creator/posts/:id", asyncHandler(async (req, res) => {
   const ok = await ensureCreator(req.session.userId!);
   if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
 
@@ -106,9 +132,9 @@ creatorRouter.put("/creator/posts/:id", async (req, res) => {
   if (!updated.count) return res.status(404).json({ error: "NOT_FOUND" });
   const post = await prisma.post.findUnique({ where: { id: req.params.id } });
   return res.json({ post });
-});
+}));
 
-creatorRouter.delete("/creator/posts/:id", async (req, res) => {
+creatorRouter.delete("/creator/posts/:id", asyncHandler(async (req, res) => {
   const ok = await ensureCreator(req.session.userId!);
   if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
 
@@ -116,4 +142,4 @@ creatorRouter.delete("/creator/posts/:id", async (req, res) => {
   if (!post || post.authorId !== req.session.userId!) return res.status(404).json({ error: "NOT_FOUND" });
   await prisma.post.delete({ where: { id: req.params.id } });
   return res.json({ ok: true });
-});
+}));

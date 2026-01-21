@@ -204,9 +204,14 @@ export default function ProfilePage() {
                 )
               ) : null}
               {!data.isOwner && (isProfessional || isShop) ? (
-                <Link className="btn-primary" href={`/chat/${profile.id}`}>
-                  Abrir chat
-                </Link>
+                <>
+                  <button className="btn-secondary" onClick={() => setTab("Servicios")}>
+                    Ver servicios
+                  </button>
+                  <Link className="btn-primary" href={`/chat/${profile.id}`}>
+                    Abrir chat
+                  </Link>
+                </>
               ) : null}
             </div>
           </div>
@@ -224,14 +229,14 @@ export default function ProfilePage() {
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs text-white/60">
-                {isCreator ? "Suscripción mensual" : isProfessional ? "Coordinación" : "Plan negocio"}
+                {isCreator ? "Suscripción mensual" : isProfessional ? "Coordinación" : "Servicios"}
               </div>
               <div className="mt-2 text-xl font-semibold">
                 {isCreator
                   ? `$${subscriptionPrice.toLocaleString("es-CL")}/mes`
                   : isProfessional
-                    ? "Agenda y servicios por chat"
-                    : "Plan fijo $20.000/mes"}
+                    ? "Agenda directa por chat"
+                    : "Servicios y anuncios"}
               </div>
               {isCreator ? (
                 <p className="mt-1 text-xs text-white/50">
@@ -239,7 +244,7 @@ export default function ProfilePage() {
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-white/50">
-                  {isProfessional ? "Reserva directa con este perfil." : "Catálogo y ubicación visibles para clientes."}
+                  {isProfessional ? "Coordina directamente con este perfil." : "Explora sus servicios y coordina por chat."}
                 </p>
               )}
             </div>

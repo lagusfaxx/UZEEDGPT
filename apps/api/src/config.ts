@@ -25,7 +25,7 @@ export const config = {
   membershipDays: Number(process.env.MEMBERSHIP_DAYS || 30),
   membershipPriceClp: Number(process.env.MEMBERSHIP_PRICE_CLP || 5000),
   shopMonthlyPriceClp: Number(process.env.SHOP_MONTHLY_PRICE_CLP || 10000),
-  storageDir: process.env.STORAGE_DIR || process.env.UPLOADS_DIR || "./uploads",
+  storageDir: process.env.UPLOAD_DIR || process.env.STORAGE_DIR || process.env.UPLOADS_DIR || "./uploads",
   adminEmail: process.env.ADMIN_EMAIL || "admin@uzeed.cl",
   adminPassword: process.env.ADMIN_PASSWORD || "Automazdabxzx94",
   smtp: {

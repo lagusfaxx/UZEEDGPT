@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import ExploreClient from "./ExploreClient";
+import { redirect } from "next/navigation";
 
 export default function ExplorePage() {
-  return (
-    <Suspense fallback={<div className="card p-6 md:p-8">Cargando explorar...</div>}>
-      <ExploreClient />
-    </Suspense>
-  );
+  redirect("/feed");
 }

@@ -12,8 +12,8 @@ export default function BillingReturnPage() {
         <Link className="btn-primary" href="/dashboard">
           Ir a mi cuenta
         </Link>
-        <Link className="btn-secondary" href="/explore">
-          Ir a explorar
+        <Link className="btn-secondary" href="/feed">
+          Ir al feed
         </Link>
       </div>
     </div>
