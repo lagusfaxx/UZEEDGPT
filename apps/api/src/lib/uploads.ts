@@ -1,12 +1,11 @@
 import fs from "fs/promises";
-import { fileTypeFromFile } from "file-type";
-
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
 export type UploadedKind = "image" | "video" | "image-or-video";
 
 export async function validateUploadedFile(file: Express.Multer.File, kind: UploadedKind) {
+  const { fileTypeFromFile } = await import("file-type");
   const detected = await fileTypeFromFile(file.path);
   if (!detected) {
     await cleanupFile(file.path);
