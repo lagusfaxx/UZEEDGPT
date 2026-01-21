@@ -2,8 +2,30 @@ import { Router } from "express";
 import { prisma } from "../db";
 import { requireAuth } from "../auth/middleware";
 import { isBusinessPlanActive } from "../lib/subscriptions";
+import multer from "multer";
+import path from "path";
+import { config } from "../config";
+import { LocalStorageProvider } from "../storage/local";
+import { validateUploadedFile } from "../lib/uploads";
 
 export const servicesRouter = Router();
+
+const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      await storageProvider.ensureBaseDir();
+      cb(null, config.storageDir);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || "";
+      const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "");
+      const name = `${Date.now()}-${safeBase}${ext}`;
+      cb(null, name);
+    }
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   const toRad = (n: number) => (n * Math.PI) / 180;
@@ -74,10 +96,47 @@ servicesRouter.get("/services", async (req, res) => {
   return res.json({ profiles: sorted });
 });
 
+servicesRouter.get("/map", async (req, res) => {
+  const lat = req.query.lat ? Number(req.query.lat) : null;
+  const lng = req.query.lng ? Number(req.query.lng) : null;
+  const types = typeof req.query.types === "string" ? req.query.types.split(",").map((t) => t.trim()) : [];
+
+  const profiles = await prisma.user.findMany({
+    where: {
+      profileType: { in: types.length ? types : ["PROFESSIONAL", "SHOP"] },
+      latitude: { not: null },
+      longitude: { not: null }
+    },
+    select: {
+      id: true,
+      displayName: true,
+      username: true,
+      profileType: true,
+      latitude: true,
+      longitude: true,
+      city: true,
+      serviceCategory: true,
+      membershipExpiresAt: true,
+      shopTrialEndsAt: true
+    }
+  });
+
+  const enriched = profiles.filter((p) => isBusinessPlanActive(p)).map((p) => {
+    const distance =
+      lat !== null && lng !== null && p.latitude !== null && p.longitude !== null
+        ? haversine(lat, lng, p.latitude, p.longitude)
+        : null;
+    return { ...p, distance };
+  });
+
+  return res.json({ profiles: enriched });
+});
+
 servicesRouter.get("/services/:userId/items", async (req, res) => {
   const items = await prisma.serviceItem.findMany({
     where: { ownerId: req.params.userId },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
+    include: { media: true }
   });
   return res.json({ items });
 });
@@ -116,7 +175,8 @@ servicesRouter.put("/services/items/:id", requireAuth, async (req, res) => {
       description: description ?? item.description,
       category: category ?? item.category,
       price: price ? Number(price) : item.price
-    }
+    },
+    include: { media: true }
   });
   return res.json({ item: updated });
 });
@@ -127,6 +187,34 @@ servicesRouter.delete("/services/items/:id", requireAuth, async (req, res) => {
   const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
   if (!item || item.ownerId !== me.id) return res.status(404).json({ error: "NOT_FOUND" });
   await prisma.serviceItem.delete({ where: { id: item.id } });
+  return res.json({ ok: true });
+});
+
+servicesRouter.post("/services/items/:id/media", requireAuth, upload.array("files", 8), async (req, res) => {
+  const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
+  if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
+  const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
+  if (!item || item.ownerId !== me.id) return res.status(404).json({ error: "NOT_FOUND" });
+
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  if (!files.length) return res.status(400).json({ error: "NO_FILES" });
+  const media = [];
+  for (const file of files) {
+    const { type } = await validateUploadedFile(file, "image-or-video");
+    const url = storageProvider.publicUrl(file.filename);
+    media.push(await prisma.serviceMedia.create({ data: { serviceItemId: item.id, type, url } }));
+  }
+  return res.json({ media });
+});
+
+servicesRouter.delete("/services/items/:id/media/:mediaId", requireAuth, async (req, res) => {
+  const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
+  if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
+  const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
+  if (!item || item.ownerId !== me.id) return res.status(404).json({ error: "NOT_FOUND" });
+  const media = await prisma.serviceMedia.findUnique({ where: { id: req.params.mediaId } });
+  if (!media || media.serviceItemId !== item.id) return res.status(404).json({ error: "NOT_FOUND" });
+  await prisma.serviceMedia.delete({ where: { id: media.id } });
   return res.json({ ok: true });
 });
 
