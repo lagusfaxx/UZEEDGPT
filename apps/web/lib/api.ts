@@ -1,6 +1,9 @@
 export type ApiError = { error: string; details?: any };
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const SERVER_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const isBrowser = typeof window !== "undefined";
+
+export const API_URL = isBrowser ? "/api" : SERVER_API_URL;
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
