@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, API_URL } from "../../lib/api";
 
 type ExplorePost = {
@@ -31,16 +31,13 @@ type ExplorePost = {
 
 type ExploreResponse = { posts: ExplorePost[]; nextPage: number | null };
 
-const typeFilters = [
-  { label: "Creadoras", value: "CREATOR" },
-  { label: "Profesionales", value: "PROFESSIONAL" },
-  { label: "Tiendas", value: "SHOP" }
-];
-
-const categoryFilters = [
-  { label: "Sexshop", value: "sexshop" },
-  { label: "Moteles", value: "motel" }
-];
+const primaryFilters = [
+  { label: "Creadoras", kind: "type", value: "CREATOR" },
+  { label: "Profesionales", kind: "type", value: "PROFESSIONAL" },
+  { label: "Tiendas", kind: "type", value: "SHOP" },
+  { label: "Sexshop", kind: "category", value: "sexshop" },
+  { label: "Moteles", kind: "category", value: "motel" }
+] as const;
 
 const sortFilters = [
   { label: "Cerca de mí", value: "near" },
@@ -50,38 +47,76 @@ const sortFilters = [
 
 export default function ExplorePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [posts, setPosts] = useState<ExplorePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [search, setSearch] = useState("");
-  const [activeTypes, setActiveTypes] = useState<string[]>(typeFilters.map((f) => f.value));
-  const [activeCategories, setActiveCategories] = useState<string[]>([]);
+  const [primaryFilter, setPrimaryFilter] = useState<(typeof primaryFilters)[number]>(primaryFilters[0]);
   const [sort, setSort] = useState("new");
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [nextPage, setNextPage] = useState<number | null>(1);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    if (search.trim()) params.set("q", search.trim());
-    if (activeTypes.length) params.set("types", activeTypes.join(","));
-    if (activeCategories.length) params.set("categories", activeCategories.join(","));
-    if (sort) params.set("sort", sort);
-    if (sort === "near" && userLocation) {
-      params.set("lat", String(userLocation[0]));
-      params.set("lng", String(userLocation[1]));
+  useEffect(() => {
+    const typeParam = searchParams.get("type");
+    const categoryParam = searchParams.get("category");
+    const searchParam = searchParams.get("q") || "";
+    const sortParam = searchParams.get("sort") || "new";
+
+    const nextPrimary =
+      (typeParam && primaryFilters.find((f) => f.kind === "type" && f.value === typeParam)) ||
+      (categoryParam && primaryFilters.find((f) => f.kind === "category" && f.value === categoryParam)) ||
+      primaryFilters[0];
+
+    setPrimaryFilter(nextPrimary);
+    setSearch(searchParam);
+    setSort(sortParam);
+  }, [searchParams]);
+
+  const { apiQueryString, urlQueryString } = useMemo(() => {
+    const apiParams = new URLSearchParams();
+    const urlParams = new URLSearchParams();
+    if (search.trim()) {
+      apiParams.set("q", search.trim());
+      urlParams.set("q", search.trim());
     }
-    return params.toString();
-  }, [search, activeTypes, activeCategories, sort, userLocation]);
+    if (primaryFilter.kind === "type") {
+      apiParams.set("types", primaryFilter.value);
+      urlParams.set("type", primaryFilter.value);
+    }
+    if (primaryFilter.kind === "category") {
+      apiParams.set("types", "SHOP");
+      apiParams.set("categories", primaryFilter.value);
+      urlParams.set("category", primaryFilter.value);
+    }
+    if (sort) {
+      apiParams.set("sort", sort);
+      urlParams.set("sort", sort);
+    }
+    if (sort === "near" && userLocation) {
+      apiParams.set("lat", String(userLocation[0]));
+      apiParams.set("lng", String(userLocation[1]));
+    }
+    return { apiQueryString: apiParams.toString(), urlQueryString: urlParams.toString() };
+  }, [search, primaryFilter, sort, userLocation]);
+
+  useEffect(() => {
+    const nextQuery = urlQueryString;
+    const currentQuery = searchParams.toString();
+    if (nextQuery !== currentQuery) {
+      router.replace(`/explore${nextQuery ? `?${nextQuery}` : ""}`);
+    }
+  }, [urlQueryString, router, searchParams]);
 
   async function load(page: number, mode: "reset" | "append") {
     if (mode === "append") setLoadingMore(true);
     if (mode === "reset") setLoading(true);
     try {
       const res = await apiFetch<ExploreResponse>(
-        `/explore?page=${page}&limit=12${queryString ? `&${queryString}` : ""}`
+        `/explore?page=${page}&limit=12${apiQueryString ? `&${apiQueryString}` : ""}`
       );
       setPosts((prev) => (mode === "append" ? [...prev, ...res.posts] : res.posts));
       setNextPage(res.nextPage);
@@ -97,7 +132,7 @@ export default function ExplorePage() {
   useEffect(() => {
     setNextPage(1);
     load(1, "reset");
-  }, [queryString]);
+  }, [apiQueryString]);
 
   useEffect(() => {
     apiFetch<{ user: { id: string } | null }>("/auth/me")
@@ -127,13 +162,17 @@ export default function ExplorePage() {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [nextPage, loading, loadingMore, queryString]);
+  }, [nextPage, loading, loadingMore, apiQueryString]);
 
   const handleSubscribe = async (username: string) => {
     try {
-      await apiFetch(`/profiles/${username}/subscribe`, { method: "POST" });
-      setNextPage(1);
-      await load(1, "reset");
+      const profile = posts.find((p) => p.author.username === username);
+      if (!profile) return;
+      const res = await apiFetch<{ paymentUrl: string }>("/billing/creator-subscriptions/start", {
+        method: "POST",
+        body: JSON.stringify({ profileId: profile.author.id })
+      });
+      window.location.href = res.paymentUrl;
     } catch (e: any) {
       setError(e?.message || "No se pudo suscribir");
     }
@@ -197,33 +236,13 @@ export default function ExplorePage() {
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            {typeFilters.map((f) => {
-              const active = activeTypes.includes(f.value);
+            {primaryFilters.map((f) => {
+              const active = primaryFilter.kind === f.kind && primaryFilter.value === f.value;
               return (
                 <button
-                  key={f.value}
+                  key={`${f.kind}-${f.value}`}
                   className={active ? "btn-primary" : "btn-secondary"}
-                  onClick={() =>
-                    setActiveTypes((prev) =>
-                      active ? prev.filter((t) => t !== f.value) : [...prev, f.value]
-                    )
-                  }
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-            {categoryFilters.map((f) => {
-              const active = activeCategories.includes(f.value);
-              return (
-                <button
-                  key={f.value}
-                  className={active ? "btn-primary" : "btn-secondary"}
-                  onClick={() =>
-                    setActiveCategories((prev) =>
-                      active ? prev.filter((t) => t !== f.value) : [...prev, f.value]
-                    )
-                  }
+                  onClick={() => setPrimaryFilter(f)}
                 >
                   {f.label}
                 </button>
