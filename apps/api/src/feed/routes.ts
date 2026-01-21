@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../db";
 import { requireAuth } from "../auth/middleware";
 import { isBusinessPlanActive } from "../lib/subscriptions";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const feedRouter = Router();
 
@@ -155,10 +156,10 @@ async function handleExplore(req: any, res: any) {
   return res.json({ posts: sortedPayload, nextPage: sortedPayload.length === limit ? page + 1 : null });
 }
 
-feedRouter.get("/explore", handleExplore);
-feedRouter.get("/feed", handleExplore);
+feedRouter.get("/explore", asyncHandler(handleExplore));
+feedRouter.get("/feed", asyncHandler(handleExplore));
 
-feedRouter.get("/dashboard", requireAuth, async (req, res) => {
+feedRouter.get("/dashboard", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.session.userId! },
     select: {
@@ -192,4 +193,4 @@ feedRouter.get("/dashboard", requireAuth, async (req, res) => {
     bio: user?.bio,
     subscriptionPrice: user?.subscriptionPrice
   });
-});
+}));
