@@ -291,7 +291,3 @@ export default function StudioPage() {
           ))}
           {!posts.length ? <div className="text-white/60">Aún no hay posts.</div> : null}
         </div>
-      </div>
-    </div>
-  );
-}
