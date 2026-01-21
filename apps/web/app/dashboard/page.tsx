@@ -47,7 +47,10 @@ type ServiceItem = {
   description: string | null;
   category: string | null;
   price: number | null;
+  media?: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
+
+type GalleryMedia = { id: string; type: "IMAGE" | "VIDEO"; url: string };
 
 export default function DashboardPage() {
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
@@ -63,6 +66,10 @@ export default function DashboardPage() {
   const [serviceCategoryName, setServiceCategoryName] = useState("");
   const [servicePrice, setServicePrice] = useState<number | "">("");
   const [serviceBody, setServiceBody] = useState("");
+  const [galleryMedia, setGalleryMedia] = useState<GalleryMedia[]>([]);
+  const [galleryFiles, setGalleryFiles] = useState<FileList | null>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [serviceMediaFiles, setServiceMediaFiles] = useState<Record<string, FileList | null>>({});
 
   const exp = useMemo(() => {
     if (!dashboard?.membershipExpiresAt) return null;
@@ -97,6 +104,24 @@ export default function DashboardPage() {
       return;
     }
     setter(file);
+  };
+
+  const handleGallerySelection = (files: FileList | null) => {
+    if (!files) {
+      setGalleryFiles(null);
+      return;
+    }
+    const valid = Array.from(files).every((file) => {
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return false;
+      if (file.type.startsWith("image/") && file.size > 10 * 1024 * 1024) return false;
+      if (file.type.startsWith("video/") && file.size > 100 * 1024 * 1024) return false;
+      return true;
+    });
+    if (!valid) {
+      setError("Archivos inválidos. Imágenes hasta 10MB, videos hasta 100MB.");
+      return;
+    }
+    setGalleryFiles(files);
   };
 
   const addServiceItem = async (e: React.FormEvent) => {
@@ -167,11 +192,17 @@ export default function DashboardPage() {
       .catch(() => null);
   }, [me?.id]);
 
+  useEffect(() => {
+    apiFetch<{ media: GalleryMedia[] }>("/profile/media")
+      .then((r) => setGalleryMedia(r.media))
+      .catch(() => null);
+  }, []);
+
   async function startSubscription() {
     setError(null);
     try {
-      const r = await apiFetch<{ redirectUrl: string }>("/payments/subscribe", { method: "POST" });
-      window.location.href = r.redirectUrl;
+      const r = await apiFetch<{ paymentUrl: string }>("/billing/shop-plan/start", { method: "POST" });
+      window.location.href = r.paymentUrl;
     } catch (e: any) {
       setError(e?.message || "No se pudo iniciar la suscripción");
     }
@@ -218,11 +249,76 @@ export default function DashboardPage() {
     }
   }
 
+  const uploadGallery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!galleryFiles) return;
+    setUploadingGallery(true);
+    try {
+      const form = new FormData();
+      Array.from(galleryFiles).forEach((file) => form.append("files", file));
+      const res = await fetch(`${API_URL}/profile/media`, { method: "POST", credentials: "include", body: form });
+      if (!res.ok) throw new Error("UPLOAD_FAILED");
+      const data = await res.json();
+      setGalleryMedia((prev) => [...data.media, ...prev]);
+      setGalleryFiles(null);
+    } catch (e: any) {
+      setError(e?.message || "No se pudo subir la galería");
+    } finally {
+      setUploadingGallery(false);
+    }
+  };
+
+  const deleteGalleryMedia = async (id: string) => {
+    try {
+      await apiFetch(`/profile/media/${id}`, { method: "DELETE" });
+      setGalleryMedia((prev) => prev.filter((m) => m.id !== id));
+    } catch (e: any) {
+      setError(e?.message || "No se pudo eliminar el media");
+    }
+  };
+
+  const handleServiceMediaSelection = (id: string, files: FileList | null) => {
+    setServiceMediaFiles((prev) => ({ ...prev, [id]: files }));
+  };
+
+  const uploadServiceMedia = async (itemId: string) => {
+    const files = serviceMediaFiles[itemId];
+    if (!files || !files.length) return;
+    try {
+      const form = new FormData();
+      Array.from(files).forEach((file) => form.append("files", file));
+      const res = await fetch(`${API_URL}/services/items/${itemId}/media`, { method: "POST", credentials: "include", body: form });
+      if (!res.ok) throw new Error("UPLOAD_FAILED");
+      const data = await res.json();
+      setServiceItems((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, media: [...(item.media || []), ...data.media] } : item))
+      );
+      setServiceMediaFiles((prev) => ({ ...prev, [itemId]: null }));
+    } catch (e: any) {
+      setError(e?.message || "No se pudo subir media del servicio");
+    }
+  };
+
+  const deleteServiceMedia = async (itemId: string, mediaId: string) => {
+    try {
+      await apiFetch(`/services/items/${itemId}/media/${mediaId}`, { method: "DELETE" });
+      setServiceItems((prev) =>
+        prev.map((item) =>
+          item.id === itemId ? { ...item, media: (item.media || []).filter((m) => m.id !== mediaId) } : item
+        )
+      );
+    } catch (e: any) {
+      setError(e?.message || "No se pudo eliminar media del servicio");
+    }
+  };
+
   if (loading) return <div className="text-white/70">Cargando...</div>;
   if (error) return <div className="text-red-200">{error}</div>;
   if (!me || !dashboard) return null;
 
-  const isCreator = me.profileType === "CREATOR" || me.profileType === "PROFESSIONAL";
+  const isCreator = me.profileType === "CREATOR";
+  const isProfessional = me.profileType === "PROFESSIONAL";
+  const canPost = isCreator || isProfessional;
   const isShop = me.profileType === "SHOP";
   const coverUrl = me.coverUrl || dashboard.coverUrl;
   const avatarUrl = me.avatarUrl;
@@ -260,7 +356,7 @@ export default function DashboardPage() {
               <Link className="btn-secondary" href="/explore">
                 Explorar
               </Link>
-              {isCreator ? (
+              {canPost ? (
                 <Link className="btn-secondary" href="/studio">
                   Gestionar publicaciones
                 </Link>
@@ -304,9 +400,13 @@ export default function DashboardPage() {
             <div className="rounded-xl bg-white/5 border border-white/10 p-4">
               <div className="text-sm text-white/60">Pagos</div>
               <div className="mt-3 flex gap-3 flex-wrap">
-                <button className="btn-secondary" onClick={startSubscription}>
-                  {subscription ? "Gestionar pago activo" : "Agregar método de pago"}
-                </button>
+                {isShop ? (
+                  <button className="btn-secondary" onClick={startSubscription}>
+                    {subscription ? "Renovar plan" : "Activar plan"}
+                  </button>
+                ) : (
+                  <span className="text-xs text-white/60">Tus pagos se realizan vía Khipu.</span>
+                )}
               </div>
               <p className="mt-2 text-xs text-white/50">
                 Los pagos y renovaciones se gestionan con Khipu. Puedes actualizar tu plan cuando quieras.
@@ -426,6 +526,45 @@ export default function DashboardPage() {
         </form>
       </div>
 
+      <div className="card p-6 md:p-8">
+        <h2 className="text-lg font-semibold">Galería</h2>
+        <p className="mt-2 text-sm text-white/60">Sube fotos y videos para tu perfil público.</p>
+        <form onSubmit={uploadGallery} className="mt-4 grid gap-3">
+          <input type="file" accept="image/*,video/*" multiple onChange={(e) => handleGallerySelection(e.target.files)} />
+          <button className="btn-primary" disabled={uploadingGallery || !galleryFiles?.length} type="submit">
+            {uploadingGallery ? "Subiendo..." : "Subir a galería"}
+          </button>
+        </form>
+        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {galleryMedia.map((media) => (
+            <div key={media.id} className="relative rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+              {media.type === "IMAGE" ? (
+                <img
+                  src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                  alt="media"
+                  className="h-32 w-full object-cover"
+                />
+              ) : (
+                <video
+                  src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                  className="h-32 w-full object-cover"
+                  muted
+                  controls
+                />
+              )}
+              <button
+                className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px]"
+                onClick={() => deleteGalleryMedia(media.id)}
+                type="button"
+              >
+                Eliminar
+              </button>
+            </div>
+          ))}
+          {!galleryMedia.length ? <div className="text-sm text-white/60">Aún no hay media.</div> : null}
+        </div>
+      </div>
+
       {me.profileType === "PROFESSIONAL" || me.profileType === "SHOP" ? (
         <div className="card p-6 md:p-8">
           <h2 className="text-lg font-semibold">Catálogo y servicios</h2>
@@ -488,6 +627,45 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
                 {item.description ? <p className="mt-2 text-sm text-white/70">{item.description}</p> : null}
+                {item.media?.length ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {item.media.map((media) => (
+                      <div key={media.id} className="relative">
+                        {media.type === "IMAGE" ? (
+                          <img
+                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                            alt={item.title}
+                            className="h-20 w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <video
+                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                            className="h-20 w-full rounded-lg object-cover"
+                            muted
+                          />
+                        )}
+                        <button
+                          className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px]"
+                          onClick={() => deleteServiceMedia(item.id, media.id)}
+                          type="button"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="mt-3 grid gap-2">
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={(e) => handleServiceMediaSelection(item.id, e.target.files)}
+                  />
+                  <button className="btn-secondary" type="button" onClick={() => uploadServiceMedia(item.id)}>
+                    Subir media
+                  </button>
+                </div>
                 <div className="mt-3">
                   <button className="btn-secondary" type="button" onClick={() => deleteServiceItem(item.id)}>
                     Eliminar
