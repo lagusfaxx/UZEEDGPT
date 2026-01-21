@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch, API_URL } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 
 type ExplorePost = {
   id: string;
