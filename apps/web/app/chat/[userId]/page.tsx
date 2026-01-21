@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch, API_URL } from "../../../lib/api";
 
 type Message = {
   id: string;
@@ -75,8 +75,8 @@ export default function ChatPage() {
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-full bg-white/10 border border-white/10 overflow-hidden">
             {other?.avatarUrl ? (
-              <img
-                src={other.avatarUrl.startsWith("http") ? other.avatarUrl : `/api${other.avatarUrl}`}
+                <img
+                  src={other.avatarUrl.startsWith("http") ? other.avatarUrl : `${API_URL}${other.avatarUrl}`}
                 alt={other.username}
                 className="h-full w-full object-cover"
               />

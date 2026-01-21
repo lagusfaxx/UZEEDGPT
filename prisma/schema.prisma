@@ -44,6 +44,19 @@ enum MediaType {
   VIDEO
 }
 
+enum PostType {
+  IMAGE
+  VIDEO
+}
+
+enum NotificationType {
+  SUBSCRIPTION_STARTED
+  SUBSCRIPTION_RENEWED
+  MESSAGE_RECEIVED
+  POST_PUBLISHED
+  SERVICE_PUBLISHED
+}
+
 enum PaymentIntentPurpose {
   CREATOR_SUBSCRIPTION
   SHOP_PLAN
@@ -78,6 +91,7 @@ model User {
   subscriptionPrice   Int?              @default(2500)
   shopTrialEndsAt     DateTime?
   termsAcceptedAt     DateTime?
+  allowFreeMessages   Boolean           @default(false)
   role                Role              @default(USER)
   membershipExpiresAt DateTime?
   createdAt           DateTime          @default(now())
@@ -96,6 +110,7 @@ model User {
   receivedMessages         Message[]           @relation("ReceivedMessages")
   receivedRatings          ServiceRating[]     @relation("ProfileRatings")
   givenRatings             ServiceRating[]     @relation("GivenRatings")
+  notifications            Notification[]
 }
 
 model Post {
@@ -105,6 +120,7 @@ model Post {
   body        String
   isPublic    Boolean  @default(false)
   price       Int      @default(0)
+  type        PostType @default(IMAGE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -164,6 +180,17 @@ model ServiceMedia {
   createdAt     DateTime  @default(now())
 
   serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PaymentIntent {

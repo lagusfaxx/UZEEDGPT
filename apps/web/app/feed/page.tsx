@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import FeedClient from "./FeedClient";
 
 export default function FeedPage() {
-  redirect("/explore");
+  return <FeedClient />;
 }

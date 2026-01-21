@@ -92,6 +92,28 @@ creatorRouter.post("/creator/posts", upload.array("files", 10), asyncHandler(asy
     const url = storageProvider.publicUrl(file.filename);
     media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
   }
+  const hasVideo = media.some((m) => m.type === "VIDEO");
+  if (hasVideo) {
+    await prisma.post.update({ where: { id: post.id }, data: { type: "VIDEO" } });
+  }
+
+  const subscriberIds = await prisma.profileSubscription.findMany({
+    where: {
+      profileId: req.session.userId!,
+      status: "ACTIVE",
+      expiresAt: { gt: new Date() }
+    },
+    select: { subscriberId: true }
+  });
+  if (subscriberIds.length) {
+    await prisma.notification.createMany({
+      data: subscriberIds.map((s) => ({
+        userId: s.subscriberId,
+        type: "POST_PUBLISHED",
+        data: { postId: post.id, creatorId: req.session.userId! }
+      }))
+    });
+  }
 
   return res.json({ post: { ...post, media } });
 }));

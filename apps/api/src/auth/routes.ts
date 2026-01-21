@@ -120,7 +120,8 @@ authRouter.get("/me", asyncHandler(async (req, res) => {
       serviceDescription: true,
       city: true,
       latitude: true,
-      longitude: true
+      longitude: true,
+      allowFreeMessages: true
     }
   });
   if (!user) return res.json({ user: null });

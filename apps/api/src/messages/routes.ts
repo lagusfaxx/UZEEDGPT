@@ -1,106 +1,248 @@
-import { Router } from "express";
-import { prisma } from "../db";
-import { requireAuth } from "../auth/middleware";
-import { asyncHandler } from "../lib/asyncHandler";
+import "dotenv/config";
+import express from "express";
+import cors, { type CorsOptions } from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+import session from "express-session";
+import pg from "pg";
+import PgSession from "connect-pg-simple";
+import path from "path";
+import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 
-export const messagesRouter = Router();
+import { config } from "./config";
+import { authRouter } from "./auth/routes";
+import { ensureAdminUser } from "./auth/seedAdmin";
+import { feedRouter } from "./feed/routes";
+import { adminRouter } from "./admin/routes";
+import { khipuRouter } from "./khipu/routes";
+import { profileRouter } from "./profile/routes";
+import { servicesRouter } from "./services/routes";
+import { messagesRouter } from "./messages/routes";
+import { creatorRouter } from "./creator/routes";
+import { billingRouter } from "./billing/routes";
+import { notificationsRouter } from "./notifications/routes";
+import { KhipuError } from "./khipu/client";
+import { statsRouter } from "./stats/routes";
+import { prisma } from "./db";
 
-messagesRouter.get("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
-  const other = req.params.userId;
-  const otherUser = await prisma.user.findUnique({
-    where: { id: other },
-    select: {
-      id: true,
-      displayName: true,
-      username: true,
-      avatarUrl: true,
-      profileType: true,
-      city: true
-    }
-  });
-  if (!otherUser) return res.status(404).json({ error: "USER_NOT_FOUND" });
+const app = express();
 
-  const messages = await prisma.message.findMany({
-    where: {
-      OR: [
-        { fromId: me, toId: other },
-        { fromId: other, toId: me }
-      ]
-    },
-    orderBy: { createdAt: "asc" },
-    take: 200
-  });
-  await prisma.message.updateMany({
-    where: { fromId: other, toId: me, readAt: null },
-    data: { readAt: new Date() }
-  });
-  return res.json({ messages, other: otherUser });
+app.set("trust proxy", 1);
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-messagesRouter.post("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
-  const other = req.params.userId;
-  const body = String(req.body?.body || "").trim();
-  if (!body) return res.status(400).json({ error: "EMPTY_MESSAGE" });
-  const message = await prisma.message.create({
-    data: {
-      fromId: me,
-      toId: other,
-      body
-    }
-  });
-  return res.json({ message });
+const corsOrigins = Array.from(new Set([
+  "https://uzeed.cl",
+  "https://www.uzeed.cl",
+  ...config.corsOrigin.split(",").map((s) => s.trim()).filter(Boolean)
+]));
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("CORS_NOT_ALLOWED"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Request-Id"],
+  exposedHeaders: ["X-Request-Id"]
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false
 }));
 
-messagesRouter.get("/messages/inbox", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
-  const messages = await prisma.message.findMany({
-    where: {
-      OR: [{ fromId: me }, { toId: me }]
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200
-  });
+app.use(cookieParser());
 
-  const conversationMap = new Map<string, typeof messages[number]>();
-  for (const message of messages) {
-    const otherId = message.fromId === me ? message.toId : message.fromId;
-    if (!conversationMap.has(otherId)) {
-      conversationMap.set(otherId, message);
+app.use((req, res, next) => {
+  const requestId = req.header("x-request-id") || randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+  next();
+});
+
+// JSON body, except for webhook where we need raw body for signature
+app.use((req, res, next) => {
+  if (req.path.startsWith("/webhooks/khipu")) {
+    express.raw({ type: "application/json" })(req, res, (err) => {
+      if (err) return next(err);
+      (req as any).rawBody = req.body;
+      try {
+        req.body = JSON.parse((req.body as Buffer).toString("utf8"));
+      } catch {
+        req.body = {};
+      }
+      return next();
+    });
+  } else {
+    express.json({ limit: "2mb" })(req, res, next);
+  }
+});
+
+const pgPool = new pg.Pool({ connectionString: config.databaseUrl });
+const PgStore = PgSession(session);
+
+app.use(
+  session({
+    name: "uzeed_session",
+    secret: config.sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: config.env !== "development",
+      domain: config.cookieDomain,
+      maxAge: 1000 * 60 * 60 * 24 * 30
+    },
+    store: new PgStore({ pool: pgPool, tableName: "session", createTableIfMissing: true })
+  })
+);
+
+app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/ready", async (_req, res) => {
+  try {
+    await prisma.$queryRawUnsafe("SELECT 1");
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: "DB_NOT_READY" });
+  }
+});
+app.get("/version", (_req, res) => res.json({ sha: process.env.GIT_SHA || "unknown", env: config.env }));
+
+// static uploads
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.resolve(config.storageDir), { maxAge: "1h" })
+);
+
+app.use("/auth", authRouter);
+app.use("/", feedRouter);
+app.use("/admin", adminRouter);
+app.use("/", khipuRouter);
+app.use("/", profileRouter);
+app.use("/", servicesRouter);
+app.use("/", messagesRouter);
+app.use("/", creatorRouter);
+app.use("/", billingRouter);
+app.use("/", notificationsRouter);
+app.use("/", statsRouter);
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const requestId = (_req as any).requestId;
+  const errorPayload = {
+    level: "error",
+    requestId,
+    route: _req.originalUrl,
+    message: err?.message || "Unknown error",
+    code: err?.code
+  };
+  console.error(JSON.stringify(errorPayload));
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2021" || err.code === "P2022") {
+      return res.status(500).json({ error: "DB_SCHEMA_MISMATCH" });
     }
   }
+  if (err instanceof KhipuError) {
+    return res.status(502).json({ error: "KHIPU_ERROR" });
+  }
+  if (typeof err?.message === "string" && err.message.startsWith("Khipu")) {
+    return res.status(502).json({ error: "KHIPU_ERROR" });
+  }
+  if (err?.message === "CORS_NOT_ALLOWED") {
+    return res.status(403).json({ error: "CORS_NOT_ALLOWED" });
+  }
+  if (err?.message === "INVALID_FILE_TYPE") {
+    return res.status(400).json({ error: "INVALID_FILE_TYPE" });
+  }
+  if (err?.message === "FILE_TOO_LARGE") {
+    return res.status(400).json({ error: "FILE_TOO_LARGE" });
+  }
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "FILE_TOO_LARGE" });
+  }
+  res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+});
 
-  const otherIds = Array.from(conversationMap.keys());
-  const others = otherIds.length
-    ? await prisma.user.findMany({
-      where: { id: { in: otherIds } },
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        avatarUrl: true,
-        profileType: true,
-        city: true
-      }
-    })
-    : [];
-  const otherMap = new Map(others.map((u) => [u.id, u]));
+async function logDatabaseDiagnostics(): Promise<string[]> {
+  let tableNames: string[] = [];
+  try {
+    const dbUrl = new URL(config.databaseUrl);
+    const schema = dbUrl.searchParams.get("schema") || "public";
+    console.log("[db] url", {
+      host: dbUrl.hostname,
+      port: dbUrl.port,
+      database: dbUrl.pathname.replace("/", ""),
+      schema
+    });
+  } catch (err) {
+    console.warn("[db] invalid DATABASE_URL", err);
+  }
 
-  const unreadCounts = otherIds.length
-    ? await prisma.message.groupBy({
-      by: ["fromId"],
-      where: { toId: me, readAt: null, fromId: { in: otherIds } },
-      _count: { _all: true }
-    })
-    : [];
-  const unreadMap = new Map(unreadCounts.map((r) => [r.fromId, r._count._all]));
+  try {
+    const info = await prisma.$queryRawUnsafe<
+      Array<{ current_database: string; current_schema: string; version: string }>
+    >("SELECT current_database(), current_schema(), version();");
+    console.log("[db] info", info[0]);
+  } catch (err) {
+    console.warn("[db] info query failed", err);
+  }
 
-  const conversations = otherIds.map((otherId) => ({
-    other: otherMap.get(otherId),
-    lastMessage: conversationMap.get(otherId),
-    unreadCount: unreadMap.get(otherId) || 0
-  })).filter((c) => c.other && c.lastMessage);
+  try {
+    const tables = await prisma.$queryRawUnsafe<Array<{ tablename: string }>>(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+    );
+    tableNames = tables.map((t) => t.tablename);
+    console.log("[db] tables", tableNames);
+  } catch (err) {
+    console.warn("[db] tables query failed", err);
+  }
 
-  return res.json({ conversations });
-}));
+  try {
+    const migrations = await prisma.$queryRawUnsafe<
+      Array<{ migration_name: string; finished_at: Date | null }>
+    >('SELECT migration_name, finished_at FROM "_prisma_migrations" ORDER BY finished_at DESC;');
+    console.log("[db] prisma migrations", migrations);
+  } catch (err) {
+    console.warn("[db] prisma migrations query failed", err);
+  }
+  return tableNames;
+}
+
+process.on("unhandledRejection", (err) => {
+  console.error("[api] unhandledRejection", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[api] uncaughtException", err);
+});
+
+ensureAdminUser()
+  .catch((err) => console.error("[api] admin seed failed", err))
+  .finally(async () => {
+    const tables = await logDatabaseDiagnostics();
+    const expectedTables = ["User", "Post", "Media", "ProfileMedia", "ServiceMedia", "PaymentIntent", "Notification"];
+    const missing = expectedTables.filter((t) => !tables.includes(t));
+    if (missing.length) {
+      console.error("[db] missing tables", missing);
+      process.exit(1);
+    }
+    app.listen(config.port, () => {
+      console.log(`[api] listening on :${config.port}`);
+    });
+  });

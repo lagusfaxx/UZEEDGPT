@@ -90,6 +90,10 @@ adminRouter.post("/posts", upload.array("files", 10), asyncHandler(async (req, r
     const url = storageProvider.publicUrl(file.filename);
     media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
   }
+  const hasVideo = media.some((m) => m.type === "VIDEO");
+  if (hasVideo) {
+    await prisma.post.update({ where: { id: post.id }, data: { type: "VIDEO" } });
+  }
 
   return res.json({ post: { ...post, media } });
 }));
@@ -119,6 +123,9 @@ adminRouter.post("/posts/:id/media", upload.single("file"), asyncHandler(async (
   const media = await prisma.media.create({
     data: { postId: req.params.id, type, url }
   });
+  if (type === "VIDEO") {
+    await prisma.post.update({ where: { id: req.params.id }, data: { type: "VIDEO" } });
+  }
 
   return res.json({ media });
 }));

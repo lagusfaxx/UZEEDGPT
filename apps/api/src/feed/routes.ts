@@ -6,7 +6,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 
 export const feedRouter = Router();
 
-async function handleExplore(req: any, res: any) {
+async function handleFeed(req: any, res: any, mediaType?: "IMAGE" | "VIDEO") {
   const userId = req.session.userId as string | undefined;
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(24, Math.max(6, Number(req.query.limit || 12)));
@@ -28,6 +28,10 @@ async function handleExplore(req: any, res: any) {
   }
 
   const where: any = { author: authorWhere };
+  if (mediaType) {
+    where.media = { some: { type: mediaType } };
+    where.type = mediaType === "VIDEO" ? "VIDEO" : "IMAGE";
+  }
 
   if (search) {
     where.OR = [
@@ -120,7 +124,12 @@ async function handleExplore(req: any, res: any) {
       const rating = author.id ? ratingMap.get(author.id) ?? null : null;
       const isSubscribed = !!(userId && (userId === author.id || subscriptionSet.has(author.id)));
       const paywalled = !p.isPublic && !isSubscribed;
-      const preview = p.media[0] ? { id: p.media[0].id, type: p.media[0].type, url: p.media[0].url } : null;
+      const filteredMedia = mediaType
+        ? p.media.filter((m) => m.type === mediaType)
+        : p.media;
+      const preview = filteredMedia[0]
+        ? { id: filteredMedia[0].id, type: filteredMedia[0].type, url: filteredMedia[0].url }
+        : null;
       const distance =
         lat !== null &&
         lng !== null &&
@@ -135,7 +144,7 @@ async function handleExplore(req: any, res: any) {
         createdAt: p.createdAt.toISOString(),
         price: p.price,
         isPublic: p.isPublic,
-        media: paywalled ? [] : p.media.map((m) => ({ id: m.id, type: m.type, url: m.url })),
+        media: paywalled ? [] : filteredMedia.map((m) => ({ id: m.id, type: m.type, url: m.url })),
         preview,
         paywalled,
         isSubscribed,
@@ -156,8 +165,9 @@ async function handleExplore(req: any, res: any) {
   return res.json({ posts: sortedPayload, nextPage: sortedPayload.length === limit ? page + 1 : null });
 }
 
-feedRouter.get("/explore", asyncHandler(handleExplore));
-feedRouter.get("/feed", asyncHandler(handleExplore));
+feedRouter.get("/explore", asyncHandler((req, res) => handleFeed(req, res)));
+feedRouter.get("/feed", asyncHandler((req, res) => handleFeed(req, res, "IMAGE")));
+feedRouter.get("/videos", asyncHandler((req, res) => handleFeed(req, res, "VIDEO")));
 
 feedRouter.get("/dashboard", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({

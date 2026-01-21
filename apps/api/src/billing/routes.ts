@@ -66,7 +66,7 @@ billingRouter.post("/billing/creator-subscriptions/start", requireAuth, asyncHan
   return res.json({ intentId: intent.id, paymentUrl: payment.payment_url });
 }));
 
-billingRouter.post("/billing/shop-plan/start", requireAuth, asyncHandler(async (req, res) => {
+const handleShopPlanStart = asyncHandler(async (req, res) => {
   const userId = req.session.userId!;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { profileType: true, username: true } });
   if (!user) return res.status(404).json({ error: "USER_NOT_FOUND" });
@@ -106,9 +106,12 @@ billingRouter.post("/billing/shop-plan/start", requireAuth, asyncHandler(async (
 
   console.log("[billing] shop plan start", { intentId: intent.id, amount });
   return res.json({ intentId: intent.id, paymentUrl: payment.payment_url });
-}));
+});
 
-billingRouter.post("/webhooks/khipu/payment", asyncHandler(async (req, res) => {
+billingRouter.post("/billing/shop-plan/start", requireAuth, handleShopPlanStart);
+billingRouter.post("/billing/shop-plans/start", requireAuth, handleShopPlanStart);
+
+const handleKhipuWebhook = asyncHandler(async (req, res) => {
   const rawBody: Buffer | undefined = (req as any).rawBody;
   const sig = req.header("x-khipu-signature");
   if (sig && rawBody) {
@@ -153,6 +156,20 @@ billingRouter.post("/webhooks/khipu/payment", asyncHandler(async (req, res) => {
           price: intent.amount
         }
       });
+      await tx.notification.createMany({
+        data: [
+          {
+            userId: intent.profileId,
+            type: "SUBSCRIPTION_STARTED",
+            data: { subscriberId: intent.subscriberId, intentId: intent.id }
+          },
+          {
+            userId: intent.subscriberId,
+            type: "SUBSCRIPTION_STARTED",
+            data: { profileId: intent.profileId, intentId: intent.id }
+          }
+        ]
+      });
     }
 
     if (intent.purpose === "SHOP_PLAN") {
@@ -160,9 +177,19 @@ billingRouter.post("/webhooks/khipu/payment", asyncHandler(async (req, res) => {
       const base = subscriptionBaseDate(user?.membershipExpiresAt || null);
       const expiresAt = addDays(base, 30);
       await tx.user.update({ where: { id: intent.subscriberId }, data: { membershipExpiresAt: expiresAt } });
+      await tx.notification.create({
+        data: {
+          userId: intent.subscriberId,
+          type: "SUBSCRIPTION_STARTED",
+          data: { intentId: intent.id }
+        }
+      });
     }
   });
 
   console.log("[billing] subscription activated", { intentId: intent.id });
   return res.json({ ok: true, status: "PAID" });
-}));
+});
+
+billingRouter.post("/webhooks/khipu/payment", handleKhipuWebhook);
+billingRouter.post("/webhooks/khipu", handleKhipuWebhook);
