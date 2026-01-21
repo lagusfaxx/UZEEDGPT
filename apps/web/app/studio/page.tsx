@@ -1,8 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { apiFetch, API_URL } from "../../lib/api";
-
 type MeResponse = {
   user: { id: string; role: "USER" | "ADMIN"; displayName: string | null; profileType: string } | null;
 };
@@ -114,7 +109,7 @@ export default function StudioPage() {
       return;
     }
     setFiles(fileList);
-    const nextPreviews = Array.from(fileList).map((file) => ({
+    const nextPreviews: { url: string; type: "IMAGE" | "VIDEO" }[] = Array.from(fileList).map((file) => ({
       url: URL.createObjectURL(file),
       type: file.type.startsWith("video/") ? "VIDEO" : "IMAGE"
     }));
@@ -289,7 +284,3 @@ export default function StudioPage() {
           ))}
           {!posts.length ? <div className="text-white/60">Aún no hay posts.</div> : null}
         </div>
-      </div>
-    </div>
-  );
-}

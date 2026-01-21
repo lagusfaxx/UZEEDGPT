@@ -13,6 +13,7 @@ type ExplorePost = {
   isPublic: boolean;
   paywalled: boolean;
   isSubscribed: boolean;
+  distance: number | null;
   preview: { id: string; type: "IMAGE" | "VIDEO"; url: string } | null;
   media: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
   author: {
@@ -22,6 +23,7 @@ type ExplorePost = {
     avatarUrl: string | null;
     profileType: string;
     subscriptionPrice: number | null;
+    rating: number | null;
     city: string | null;
     serviceCategory: string | null;
   };
@@ -52,6 +54,7 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTypes, setActiveTypes] = useState<string[]>(typeFilters.map((f) => f.value));
   const [activeCategories, setActiveCategories] = useState<string[]>([]);
@@ -95,6 +98,12 @@ export default function ExplorePage() {
     setNextPage(1);
     load(1, "reset");
   }, [queryString]);
+
+  useEffect(() => {
+    apiFetch<{ user: { id: string } | null }>("/auth/me")
+      .then((r) => setIsLoggedIn(!!r.user))
+      .catch(() => setIsLoggedIn(false));
+  }, []);
 
   useEffect(() => {
     if (sort !== "near") return;
@@ -166,12 +175,14 @@ export default function ExplorePage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Link className="btn-secondary" href="/services">
-              Servicios y mapa
+            <Link className="btn-ghost" href="/services">
+              📍 Mapa
             </Link>
-            <Link className="btn-primary" href="/dashboard">
-              Mi cuenta
-            </Link>
+            {isLoggedIn ? (
+              <Link className="btn-accent" href="/dashboard">
+                Mi cuenta
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -265,8 +276,13 @@ export default function ExplorePage() {
                     {avatar ? <img src={avatar} alt={p.author.username} className="h-full w-full object-cover" /> : null}
                   </div>
                   <div>
-                    <div className="text-sm font-semibold">
-                      {p.author.displayName || p.author.username}
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      <span>{p.author.displayName || p.author.username}</span>
+                      {p.author.profileType === "CREATOR" ? (
+                        <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-white/70">
+                          ${subPrice.toLocaleString("es-CL")}/mes
+                        </span>
+                      ) : null}
                     </div>
                     <div className="text-xs text-white/50">@{p.author.username}</div>
                   </div>
@@ -276,7 +292,11 @@ export default function ExplorePage() {
 
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60">
                 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1">
-                  {p.author.profileType === "CREATOR" ? "Creadora" : "Profesional"}
+                  {p.author.profileType === "CREATOR"
+                    ? "Creadora"
+                    : p.author.profileType === "PROFESSIONAL"
+                      ? "Profesional"
+                      : "Negocio"}
                 </span>
                 {p.isPublic ? (
                   <span className="rounded-full bg-emerald-500/10 text-emerald-200 border border-emerald-400/30 px-3 py-1">
@@ -287,6 +307,16 @@ export default function ExplorePage() {
                     Solo miembros
                   </span>
                 )}
+                {p.author.profileType !== "CREATOR" && p.author.rating ? (
+                  <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-white/70">
+                    ⭐ {p.author.rating.toFixed(1)}
+                  </span>
+                ) : null}
+                {p.distance !== null ? (
+                  <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-white/70">
+                    {p.distance.toFixed(1)} km
+                  </span>
+                ) : null}
                 {p.author.city ? <span className="text-white/40">• {p.author.city}</span> : null}
                 {p.author.serviceCategory ? <span className="text-white/40">• {p.author.serviceCategory}</span> : null}
               </div>
@@ -320,7 +350,7 @@ export default function ExplorePage() {
 
                 {p.paywalled ? (
                   <div
-                    className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6"
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6 bg-black/45 backdrop-blur-sm"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="text-xs uppercase tracking-[0.2em] text-white/60">Solo miembros</div>
@@ -328,10 +358,22 @@ export default function ExplorePage() {
                       Suscripción al perfil de {p.author.displayName || p.author.username}
                     </div>
                     <div className="flex flex-wrap justify-center gap-2">
-                      <button className="btn-accent" onClick={() => handleSubscribe(p.author.username)}>
+                      <button
+                        className="btn-accent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSubscribe(p.author.username);
+                        }}
+                      >
                         Suscribirme ${subPrice.toLocaleString("es-CL")}/mes
                       </button>
-                      <button className="btn-ghost" onClick={() => router.push(`/profile/${p.author.username}`)}>
+                      <button
+                        className="btn-ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/profile/${p.author.username}`);
+                        }}
+                      >
                         Ver perfil
                       </button>
                     </div>

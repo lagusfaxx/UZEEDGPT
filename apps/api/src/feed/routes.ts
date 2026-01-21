@@ -76,6 +76,14 @@ async function handleExplore(req: any, res: any) {
   });
 
   const authorIds = Array.from(new Set(posts.map((p) => p.author?.id).filter(Boolean))) as string[];
+  const ratings = authorIds.length
+    ? await prisma.serviceRating.groupBy({
+      by: ["profileId"],
+      where: { profileId: { in: authorIds } },
+      _avg: { rating: true }
+    })
+    : [];
+  const ratingMap = new Map(ratings.map((r) => [r.profileId, r._avg.rating]));
   const subscriptions = userId && authorIds.length
     ? await prisma.profileSubscription.findMany({
       where: {
@@ -107,6 +115,7 @@ async function handleExplore(req: any, res: any) {
         latitude: null,
         longitude: null
       };
+      const rating = author.id ? ratingMap.get(author.id) ?? null : null;
       const isSubscribed = !!(userId && (userId === author.id || subscriptionSet.has(author.id)));
       const paywalled = !p.isPublic && !isSubscribed;
       const preview = p.media[0] ? { id: p.media[0].id, type: p.media[0].type, url: p.media[0].url } : null;
@@ -129,7 +138,7 @@ async function handleExplore(req: any, res: any) {
         paywalled,
         isSubscribed,
         distance,
-        author
+        author: { ...author, rating: rating ? Number(rating) : null }
       };
     });
 
