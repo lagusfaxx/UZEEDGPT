@@ -159,6 +159,8 @@ export default function StudioPage() {
   if (err) return <div className="text-red-200">{err}</div>;
   if (!me) return null;
 
+  const hasPosts = posts.length > 0;
+
   return (
     <div className="grid gap-6">
       <div className="card p-6">
@@ -289,7 +291,7 @@ export default function StudioPage() {
               ) : null}
             </div>
           ))}
-          {!posts.length ? <div className="text-white/60">Aún no hay posts.</div> : null}
+          {!hasPosts ? <div className="text-white/60">Aún no hay posts.</div> : null}
         </div>
       </div>
     </div>
