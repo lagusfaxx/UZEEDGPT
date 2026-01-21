@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { apiFetch, API_URL } from "../../lib/api";
+
 type MeResponse = {
   user: { id: string; role: "USER" | "ADMIN"; displayName: string | null; profileType: string } | null;
 };
@@ -14,6 +19,8 @@ type Post = {
 
 type ListResp = { posts: Post[] };
 
+type Preview = { url: string; type: "IMAGE" | "VIDEO" };
+
 export default function StudioPage() {
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -25,7 +32,7 @@ export default function StudioPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [creating, setCreating] = useState(false);
-  const [previews, setPreviews] = useState<{ url: string; type: "IMAGE" | "VIDEO" }[]>([]);
+  const [previews, setPreviews] = useState<Preview[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -109,7 +116,7 @@ export default function StudioPage() {
       return;
     }
     setFiles(fileList);
-    const nextPreviews: { url: string; type: "IMAGE" | "VIDEO" }[] = Array.from(fileList).map((file) => ({
+    const nextPreviews: Preview[] = Array.from(fileList).map((file) => ({
       url: URL.createObjectURL(file),
       type: file.type.startsWith("video/") ? "VIDEO" : "IMAGE"
     }));
