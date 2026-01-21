@@ -10,10 +10,10 @@ export default function BillingReturnPage() {
       </p>
       <div className="mt-6 flex gap-3 flex-wrap">
         <Link className="btn-primary" href="/dashboard">
-          Ir al dashboard
+          Ir a mi cuenta
         </Link>
-        <Link className="btn-secondary" href="/feed">
-          Ver feed
+        <Link className="btn-secondary" href="/explore">
+          Ir a explorar
         </Link>
       </div>
     </div>

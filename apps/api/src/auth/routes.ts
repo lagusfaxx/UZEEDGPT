@@ -35,6 +35,7 @@ authRouter.post("/register", async (req, res) => {
       passwordHash,
       displayName: displayName || null,
       shopTrialEndsAt,
+      subscriptionPrice: profileType === "CREATOR" || profileType === "PROFESSIONAL" ? 2500 : null,
       role: "USER"
     },
     select: {
@@ -110,7 +111,15 @@ authRouter.get("/me", async (req, res) => {
       preferenceGender: true,
       avatarUrl: true,
       address: true,
-      phone: true
+      phone: true,
+      bio: true,
+      coverUrl: true,
+      subscriptionPrice: true,
+      serviceCategory: true,
+      serviceDescription: true,
+      city: true,
+      latitude: true,
+      longitude: true
     }
   });
   if (!user) return res.json({ user: null });
