@@ -6,6 +6,7 @@ import { config } from "../config";
 import { createPayment } from "../khipu/client";
 import { verifyKhipuSignature } from "../khipu/webhook";
 import { addDays } from "@uzeed/shared";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const billingRouter = Router();
 
@@ -15,7 +16,7 @@ function subscriptionBaseDate(expiresAt: Date | null) {
   return now;
 }
 
-billingRouter.post("/billing/creator-subscriptions/start", requireAuth, async (req, res) => {
+billingRouter.post("/billing/creator-subscriptions/start", requireAuth, asyncHandler(async (req, res) => {
   const subscriberId = req.session.userId!;
   const profileId = String(req.body?.profileId || "");
   if (!profileId) return res.status(400).json({ error: "PROFILE_REQUIRED" });
@@ -63,9 +64,9 @@ billingRouter.post("/billing/creator-subscriptions/start", requireAuth, async (r
 
   console.log("[billing] creator subscription start", { intentId: intent.id, profileId, amount });
   return res.json({ intentId: intent.id, paymentUrl: payment.payment_url });
-});
+}));
 
-billingRouter.post("/billing/shop-plan/start", requireAuth, async (req, res) => {
+billingRouter.post("/billing/shop-plan/start", requireAuth, asyncHandler(async (req, res) => {
   const userId = req.session.userId!;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { profileType: true, username: true } });
   if (!user) return res.status(404).json({ error: "USER_NOT_FOUND" });
@@ -105,9 +106,9 @@ billingRouter.post("/billing/shop-plan/start", requireAuth, async (req, res) => 
 
   console.log("[billing] shop plan start", { intentId: intent.id, amount });
   return res.json({ intentId: intent.id, paymentUrl: payment.payment_url });
-});
+}));
 
-billingRouter.post("/webhooks/khipu/payment", async (req, res) => {
+billingRouter.post("/webhooks/khipu/payment", asyncHandler(async (req, res) => {
   const rawBody: Buffer | undefined = (req as any).rawBody;
   const sig = req.header("x-khipu-signature");
   if (sig && rawBody) {
@@ -164,4 +165,4 @@ billingRouter.post("/webhooks/khipu/payment", async (req, res) => {
 
   console.log("[billing] subscription activated", { intentId: intent.id });
   return res.json({ ok: true, status: "PAID" });
-});
+}));

@@ -7,10 +7,14 @@ import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
 import { isBusinessPlanActive } from "../lib/subscriptions";
 import { validateUploadedFile } from "../lib/uploads";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const profileRouter = Router();
 
-const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const storageProvider = new LocalStorageProvider({
+  baseDir: config.storageDir,
+  publicPathPrefix: `${config.apiUrl.replace(/\/$/, "")}/uploads`
+});
 
 const storage = multer.diskStorage({
   destination: async (_req, _file, cb) => {
@@ -40,7 +44,7 @@ const uploadMedia = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-profileRouter.get("/profiles", async (req, res) => {
+profileRouter.get("/profiles", asyncHandler(async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const types = typeof req.query.types === "string" ? req.query.types.split(",").map((t) => t.trim()) : [];
   const where: any = {
@@ -80,9 +84,9 @@ profileRouter.get("/profiles", async (req, res) => {
   const filtered = profiles.filter((p) => isBusinessPlanActive(p));
 
   return res.json({ profiles: filtered });
-});
+}));
 
-profileRouter.get("/profiles/:username", async (req, res) => {
+profileRouter.get("/profiles/:username", asyncHandler(async (req, res) => {
   const username = req.params.username;
   const viewerId = req.session.userId || null;
   const profile = await prisma.user.findUnique({
@@ -161,19 +165,19 @@ profileRouter.get("/profiles/:username", async (req, res) => {
     serviceItems,
     gallery
   });
-});
+}));
 
-profileRouter.post("/profiles/:username/subscribe", requireAuth, async (req, res) => {
+profileRouter.post("/profiles/:username/subscribe", requireAuth, asyncHandler(async (req, res) => {
   return res.status(410).json({ error: "USE_BILLING_START" });
-});
+}));
 
-profileRouter.get("/profile/me", requireAuth, async (req, res) => {
+profileRouter.get("/profile/me", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!user) return res.status(404).json({ error: "NOT_FOUND" });
   return res.json({ user });
-});
+}));
 
-profileRouter.put("/profile", requireAuth, async (req, res) => {
+profileRouter.put("/profile", requireAuth, asyncHandler(async (req, res) => {
   const {
     displayName,
     bio,
@@ -223,9 +227,9 @@ profileRouter.put("/profile", requireAuth, async (req, res) => {
     }
   });
   return res.json({ user });
-});
+}));
 
-profileRouter.post("/profile/avatar", requireAuth, uploadImage.single("file"), async (req, res) => {
+profileRouter.post("/profile/avatar", requireAuth, uploadImage.single("file"), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "NO_FILE" });
   await validateUploadedFile(req.file, "image");
   const url = storageProvider.publicUrl(req.file.filename);
@@ -234,9 +238,9 @@ profileRouter.post("/profile/avatar", requireAuth, uploadImage.single("file"), a
     data: { avatarUrl: url }
   });
   return res.json({ user });
-});
+}));
 
-profileRouter.post("/profile/cover", requireAuth, uploadImage.single("file"), async (req, res) => {
+profileRouter.post("/profile/cover", requireAuth, uploadImage.single("file"), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "NO_FILE" });
   await validateUploadedFile(req.file, "image");
   const url = storageProvider.publicUrl(req.file.filename);
@@ -245,17 +249,17 @@ profileRouter.post("/profile/cover", requireAuth, uploadImage.single("file"), as
     data: { coverUrl: url }
   });
   return res.json({ user });
-});
+}));
 
-profileRouter.get("/profile/media", requireAuth, async (req, res) => {
+profileRouter.get("/profile/media", requireAuth, asyncHandler(async (req, res) => {
   const media = await prisma.profileMedia.findMany({
     where: { ownerId: req.session.userId! },
     orderBy: { createdAt: "desc" }
   });
   return res.json({ media });
-});
+}));
 
-profileRouter.post("/profile/media", requireAuth, uploadMedia.array("files", 12), async (req, res) => {
+profileRouter.post("/profile/media", requireAuth, uploadMedia.array("files", 12), asyncHandler(async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (!files.length) return res.status(400).json({ error: "NO_FILES" });
   const media = [];
@@ -269,11 +273,11 @@ profileRouter.post("/profile/media", requireAuth, uploadMedia.array("files", 12)
     );
   }
   return res.json({ media });
-});
+}));
 
-profileRouter.delete("/profile/media/:id", requireAuth, async (req, res) => {
+profileRouter.delete("/profile/media/:id", requireAuth, asyncHandler(async (req, res) => {
   const media = await prisma.profileMedia.findUnique({ where: { id: req.params.id } });
   if (!media || media.ownerId !== req.session.userId!) return res.status(404).json({ error: "NOT_FOUND" });
   await prisma.profileMedia.delete({ where: { id: media.id } });
   return res.json({ ok: true });
-});
+}));

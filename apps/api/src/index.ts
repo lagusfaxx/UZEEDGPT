@@ -8,6 +8,8 @@ import session from "express-session";
 import pg from "pg";
 import PgSession from "connect-pg-simple";
 import path from "path";
+import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 
 import { config } from "./config";
 import { authRouter } from "./auth/routes";
@@ -20,6 +22,7 @@ import { servicesRouter } from "./services/routes";
 import { messagesRouter } from "./messages/routes";
 import { creatorRouter } from "./creator/routes";
 import { billingRouter } from "./billing/routes";
+import { prisma } from "./db";
 
 const app = express();
 
@@ -42,6 +45,13 @@ app.use(rateLimit({
 }));
 
 app.use(cookieParser());
+
+app.use((req, res, next) => {
+  const requestId = req.header("x-request-id") || randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+  next();
+});
 
 // JSON body, except for webhook where we need raw body for signature
 app.use((req, res, next) => {
@@ -82,7 +92,15 @@ app.use(
 );
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
-app.get("/version", (_req, res) => res.json({ sha: process.env.GIT_SHA || "unknown" }));
+app.get("/ready", async (_req, res) => {
+  try {
+    await prisma.$queryRawUnsafe("SELECT 1");
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: "DB_NOT_READY" });
+  }
+});
+app.get("/version", (_req, res) => res.json({ sha: process.env.GIT_SHA || "unknown", env: config.env }));
 
 // static uploads
 app.use(
@@ -105,7 +123,23 @@ app.use("/", creatorRouter);
 app.use("/", billingRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+  const requestId = (_req as any).requestId;
+  const errorPayload = {
+    level: "error",
+    requestId,
+    route: _req.originalUrl,
+    message: err?.message || "Unknown error",
+    code: err?.code
+  };
+  console.error(JSON.stringify(errorPayload));
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2021" || err.code === "P2022") {
+      return res.status(500).json({ error: "DB_SCHEMA_MISMATCH" });
+    }
+  }
+  if (typeof err?.message === "string" && err.message.startsWith("Khipu")) {
+    return res.status(502).json({ error: "KHIPU_ERROR" });
+  }
   if (err?.message === "INVALID_FILE_TYPE") {
     return res.status(400).json({ error: "INVALID_FILE_TYPE" });
   }
@@ -118,9 +152,60 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
 });
 
+async function logDatabaseDiagnostics() {
+  try {
+    const dbUrl = new URL(config.databaseUrl);
+    const schema = dbUrl.searchParams.get("schema") || "public";
+    console.log("[db] url", {
+      host: dbUrl.hostname,
+      port: dbUrl.port,
+      database: dbUrl.pathname.replace("/", ""),
+      schema
+    });
+  } catch (err) {
+    console.warn("[db] invalid DATABASE_URL", err);
+  }
+
+  try {
+    const info = await prisma.$queryRawUnsafe<
+      Array<{ current_database: string; current_schema: string; version: string }>
+    >("SELECT current_database(), current_schema(), version();");
+    console.log("[db] info", info[0]);
+  } catch (err) {
+    console.warn("[db] info query failed", err);
+  }
+
+  try {
+    const tables = await prisma.$queryRawUnsafe<Array<{ tablename: string }>>(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+    );
+    console.log("[db] tables", tables.map((t) => t.tablename));
+  } catch (err) {
+    console.warn("[db] tables query failed", err);
+  }
+
+  try {
+    const migrations = await prisma.$queryRawUnsafe<
+      Array<{ migration_name: string; finished_at: Date | null }>
+    >('SELECT migration_name, finished_at FROM "_prisma_migrations" ORDER BY finished_at DESC;');
+    console.log("[db] prisma migrations", migrations);
+  } catch (err) {
+    console.warn("[db] prisma migrations query failed", err);
+  }
+}
+
+process.on("unhandledRejection", (err) => {
+  console.error("[api] unhandledRejection", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[api] uncaughtException", err);
+});
+
 ensureAdminUser()
   .catch((err) => console.error("[api] admin seed failed", err))
-  .finally(() => {
+  .finally(async () => {
+    await logDatabaseDiagnostics();
     app.listen(config.port, () => {
       console.log(`[api] listening on :${config.port}`);
     });
