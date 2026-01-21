@@ -44,6 +44,18 @@ enum MediaType {
   VIDEO
 }
 
+enum PaymentIntentPurpose {
+  CREATOR_SUBSCRIPTION
+  SHOP_PLAN
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
 model User {
   id                  String            @id @default(uuid()) @db.Uuid
   email               String            @unique
@@ -77,6 +89,8 @@ model User {
   profileSubscriptions     ProfileSubscription[] @relation("ProfileSubscriptions")
   profileSubscriptionsByMe ProfileSubscription[] @relation("ProfileSubscriber")
   services                 ServiceItem[]
+  profileMedia             ProfileMedia[]
+  paymentIntents           PaymentIntent[]
   sentMessages             Message[]           @relation("SentMessages")
   receivedMessages         Message[]           @relation("ReceivedMessages")
   receivedRatings          ServiceRating[]     @relation("ProfileRatings")
@@ -164,6 +178,43 @@ model ServiceItem {
   updatedAt   DateTime @updatedAt
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  media ServiceMedia[]
+}
+
+model ProfileMedia {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @db.Uuid
+  type      MediaType
+  url       String
+  createdAt DateTime  @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model ServiceMedia {
+  id            String    @id @default(uuid()) @db.Uuid
+  serviceItemId String    @db.Uuid
+  type          MediaType
+  url           String
+  createdAt     DateTime  @default(now())
+
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+}
+
+model PaymentIntent {
+  id               String               @id @default(uuid()) @db.Uuid
+  subscriberId     String               @db.Uuid
+  profileId        String?              @db.Uuid
+  purpose          PaymentIntentPurpose
+  status           PaymentIntentStatus  @default(PENDING)
+  amount           Int
+  providerPaymentId String?
+  paymentUrl       String?
+  paidAt           DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  subscriber User @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 }
 
 model Message {

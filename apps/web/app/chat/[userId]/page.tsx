@@ -12,6 +12,15 @@ type Message = {
   createdAt: string;
 };
 
+type ChatUser = {
+  id: string;
+  displayName: string | null;
+  username: string;
+  avatarUrl: string | null;
+  profileType: string;
+  city: string | null;
+};
+
 type MeResponse = {
   user: { id: string; displayName: string | null; username: string } | null;
 };
@@ -21,6 +30,7 @@ export default function ChatPage() {
   const userId = String(params.userId || "");
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [other, setOther] = useState<ChatUser | null>(null);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +38,7 @@ export default function ChatPage() {
   async function load() {
     const [meResp, msgResp] = await Promise.all([
       apiFetch<MeResponse>("/auth/me"),
-      apiFetch<{ messages: Message[] }>(`/messages/${userId}`)
+      apiFetch<{ messages: Message[]; other: ChatUser }>(`/messages/${userId}`)
     ]);
     if (!meResp.user) {
       window.location.href = "/login";
@@ -36,6 +46,7 @@ export default function ChatPage() {
     }
     setMe(meResp.user);
     setMessages(msgResp.messages);
+    setOther(msgResp.other);
   }
 
   useEffect(() => {
@@ -61,10 +72,28 @@ export default function ChatPage() {
   return (
     <div className="grid gap-6">
       <div className="card p-6">
-        <h1 className="text-2xl font-semibold">Chat en vivo</h1>
-        <p className="mt-1 text-sm text-white/70">
-          Conversación segura para coordinar servicios o compras.
-        </p>
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-white/10 border border-white/10 overflow-hidden">
+            {other?.avatarUrl ? (
+              <img
+                src={other.avatarUrl.startsWith("http") ? other.avatarUrl : `/api${other.avatarUrl}`}
+                alt={other.username}
+                className="h-full w-full object-cover"
+              />
+            ) : null}
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">{other?.displayName || other?.username || "Chat"}</h1>
+            {other ? (
+              <p className="text-xs text-white/60">
+                @{other.username} • {other.profileType === "SHOP" ? "Negocio" : other.profileType === "PROFESSIONAL" ? "Profesional" : "Creadora"}
+                {other.city ? ` • ${other.city}` : ""}
+              </p>
+            ) : (
+              <p className="text-xs text-white/60">Conversación segura para coordinar.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="card p-6">

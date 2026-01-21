@@ -58,6 +58,23 @@ export type KhipuChargeIntentResponse = {
   payment_id: string;
 };
 
+export type KhipuCreatePaymentRequest = {
+  amount: number;
+  currency: string;
+  subject: string;
+  body?: string;
+  transaction_id: string;
+  return_url: string;
+  cancel_url: string;
+  notify_url: string;
+  notify_api_version?: string;
+};
+
+export type KhipuCreatePaymentResponse = {
+  payment_id: string;
+  payment_url?: string;
+};
+
 export async function createSubscription(req: KhipuCreateSubscriptionRequest): Promise<KhipuCreateSubscriptionResponse> {
   return khipuFetch<KhipuCreateSubscriptionResponse>("/v1/automatic-payment/subscription", {
     method: "POST",
@@ -73,6 +90,13 @@ export async function getSubscription(subscriptionId: string): Promise<KhipuSubs
 
 export async function createChargeIntent(req: KhipuChargeIntentRequest): Promise<KhipuChargeIntentResponse> {
   return khipuFetch<KhipuChargeIntentResponse>("/v1/automatic-payment/charge-intent", {
+    method: "POST",
+    body: JSON.stringify(req)
+  });
+}
+
+export async function createPayment(req: KhipuCreatePaymentRequest): Promise<KhipuCreatePaymentResponse> {
+  return khipuFetch<KhipuCreatePaymentResponse>("/v1/payments", {
     method: "POST",
     body: JSON.stringify(req)
   });
