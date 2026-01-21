@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { apiFetch, API_URL } from "../../../lib/api";
 
 type ProfilePost = {
@@ -37,6 +37,7 @@ type ServiceItem = {
   description: string | null;
   category: string | null;
   price: number | null;
+  media?: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
 
 type ProfileResponse = {
@@ -46,6 +47,7 @@ type ProfileResponse = {
   isOwner: boolean;
   subscriptionExpiresAt: string | null;
   serviceItems: ServiceItem[];
+  gallery: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
 
 const tabs = ["Publicaciones", "Fotos", "Videos", "Servicios"] as const;
@@ -53,6 +55,7 @@ const tabs = ["Publicaciones", "Fotos", "Videos", "Servicios"] as const;
 export default function ProfilePage() {
   const params = useParams<{ username: string }>();
   const username = params?.username;
+  const router = useRouter();
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [tab, setTab] = useState<(typeof tabs)[number]>("Publicaciones");
   const [selected, setSelected] = useState<ProfilePost | null>(null);
@@ -67,6 +70,16 @@ export default function ProfilePage() {
       .finally(() => setLoading(false));
   }, [username]);
 
+  useEffect(() => {
+    if (!data) return;
+    const type = data.profile.profileType;
+    if (type === "PROFESSIONAL" || type === "SHOP") {
+      setTab("Servicios");
+    } else {
+      setTab("Publicaciones");
+    }
+  }, [data]);
+
   const filteredPosts = useMemo(() => {
     if (!data) return [];
     if (tab === "Fotos") {
@@ -78,16 +91,40 @@ export default function ProfilePage() {
     return data.posts;
   }, [data, tab]);
 
+  const filteredGallery = useMemo(() => {
+    if (!data) return [];
+    if (tab === "Fotos") return data.gallery.filter((m) => m.type === "IMAGE");
+    if (tab === "Videos") return data.gallery.filter((m) => m.type === "VIDEO");
+    return data.gallery;
+  }, [data, tab]);
+
   const showServices = data?.profile.profileType === "PROFESSIONAL" || data?.profile.profileType === "SHOP";
 
   const handleSubscribe = async () => {
     if (!data) return;
     try {
-      await apiFetch(`/profiles/${data.profile.username}/subscribe`, { method: "POST" });
-      const refreshed = await apiFetch<ProfileResponse>(`/profiles/${data.profile.username}`);
-      setData(refreshed);
+      const res = await apiFetch<{ paymentUrl: string }>("/billing/creator-subscriptions/start", {
+        method: "POST",
+        body: JSON.stringify({ profileId: data.profile.id })
+      });
+      window.location.href = res.paymentUrl;
     } catch (e: any) {
       setError(e?.message || "No se pudo suscribir");
+    }
+  };
+
+  const handleServiceChat = async (item: ServiceItem) => {
+    if (!data) return;
+    const price = item.price ? `$${item.price.toLocaleString("es-CL")}` : "precio a convenir";
+    const body = `Hola, quiero ${item.title} por ${price}.`;
+    try {
+      await apiFetch(`/messages/${data.profile.id}`, {
+        method: "POST",
+        body: JSON.stringify({ body })
+      });
+      router.push(`/chat/${data.profile.id}`);
+    } catch (e: any) {
+      setError(e?.message || "No se pudo abrir el chat");
     }
   };
 
@@ -117,6 +154,10 @@ export default function ProfilePage() {
   const coverUrl = profile.coverUrl ? (profile.coverUrl.startsWith("http") ? profile.coverUrl : `${API_URL}${profile.coverUrl}`) : null;
   const avatarUrl = profile.avatarUrl ? (profile.avatarUrl.startsWith("http") ? profile.avatarUrl : `${API_URL}${profile.avatarUrl}`) : null;
   const subscriptionPrice = profile.subscriptionPrice || 2500;
+  const isCreator = profile.profileType === "CREATOR";
+  const isProfessional = profile.profileType === "PROFESSIONAL";
+  const isShop = profile.profileType === "SHOP";
+  const galleryMedia = filteredGallery;
 
   return (
     <div className="grid gap-6">
@@ -151,7 +192,7 @@ export default function ProfilePage() {
                   Editar perfil
                 </Link>
               ) : null}
-              {!data.isOwner && (profile.profileType === "CREATOR" || profile.profileType === "PROFESSIONAL") ? (
+              {!data.isOwner && isCreator ? (
                 data.isSubscribed ? (
                   <button className="btn-secondary" type="button">
                     Suscripción activa
@@ -162,9 +203,11 @@ export default function ProfilePage() {
                   </button>
                 )
               ) : null}
-              <Link className="btn-secondary" href={`/chat/${profile.id}`}>
-                Abrir chat
-              </Link>
+              {!data.isOwner && (isProfessional || isShop) ? (
+                <Link className="btn-primary" href={`/chat/${profile.id}`}>
+                  Abrir chat
+                </Link>
+              ) : null}
             </div>
           </div>
 
@@ -180,15 +223,25 @@ export default function ProfilePage() {
               {profile.address ? <p className="mt-1 text-xs text-white/40">{profile.address}</p> : null}
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/60">Precio mensual</div>
-              <div className="mt-2 text-xl font-semibold">
-                {profile.profileType === "CREATOR" || profile.profileType === "PROFESSIONAL"
-                  ? `$${subscriptionPrice.toLocaleString("es-CL")}/mes`
-                  : "Plan negocio $20.000/mes"}
+              <div className="text-xs text-white/60">
+                {isCreator ? "Suscripción mensual" : isProfessional ? "Coordinación" : "Plan negocio"}
               </div>
-              <p className="mt-1 text-xs text-white/50">
-                {data.isSubscribed ? "Suscripción activa" : "Acceso completo al contenido premium y servicios."}
-              </p>
+              <div className="mt-2 text-xl font-semibold">
+                {isCreator
+                  ? `$${subscriptionPrice.toLocaleString("es-CL")}/mes`
+                  : isProfessional
+                    ? "Agenda y servicios por chat"
+                    : "Plan fijo $20.000/mes"}
+              </div>
+              {isCreator ? (
+                <p className="mt-1 text-xs text-white/50">
+                  {data.isSubscribed ? "Suscripción activa" : "Suscríbete para desbloquear contenido premium."}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-white/50">
+                  {isProfessional ? "Reserva directa con este perfil." : "Catálogo y ubicación visibles para clientes."}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -207,21 +260,49 @@ export default function ProfilePage() {
         </div>
 
         {tab === "Servicios" && showServices ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {data.serviceItems.map((item) => (
-              <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold">{item.title}</div>
-                    {item.category ? <div className="text-xs text-white/50">{item.category}</div> : null}
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {data.serviceItems.map((item) => (
+                <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold">{item.title}</div>
+                      {item.category ? <div className="text-xs text-white/50">{item.category}</div> : null}
+                    </div>
+                    {item.price ? (
+                      <span className="text-xs text-white/70">${item.price.toLocaleString("es-CL")}</span>
+                    ) : null}
                   </div>
-                  {item.price ? (
-                    <span className="text-xs text-white/70">${item.price.toLocaleString("es-CL")}</span>
+                  {item.description ? <p className="mt-2 text-sm text-white/70">{item.description}</p> : null}
+                  {item.media?.length ? (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {item.media.slice(0, 3).map((media) =>
+                        media.type === "IMAGE" ? (
+                          <img
+                            key={media.id}
+                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                            alt={item.title}
+                            className="h-20 w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <video
+                            key={media.id}
+                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                            className="h-20 w-full rounded-lg object-cover"
+                            muted
+                          />
+                        )
+                      )}
+                    </div>
+                  ) : null}
+                  {!data.isOwner ? (
+                    <div className="mt-3">
+                      <button className="btn-primary" onClick={() => handleServiceChat(item)} type="button">
+                        Comprar/Coordinar
+                      </button>
+                    </div>
                   ) : null}
                 </div>
-                {item.description ? <p className="mt-2 text-sm text-white/70">{item.description}</p> : null}
-              </div>
-            ))}
+              ))}
             {!data.serviceItems.length ? (
               <div className="col-span-full rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
                 Este negocio aún no publica servicios. Vuelve pronto para ver el catálogo actualizado.
@@ -231,46 +312,70 @@ export default function ProfilePage() {
         ) : (
           <>
             <div className="mt-6 grid grid-cols-3 gap-3">
-              {filteredPosts.map((post) => {
-                const preview = post.preview
-                  ? post.preview.url.startsWith("http")
-                    ? post.preview.url
-                    : `${API_URL}${post.preview.url}`
-                  : null;
-                return (
-                  <button
-                    key={post.id}
-                    className="relative aspect-square rounded-xl border border-white/10 bg-white/5 overflow-hidden"
-                    onClick={() => setSelected(post)}
-                  >
-                    {preview ? (
-                      post.preview?.type === "IMAGE" ? (
-                        <img src={preview} alt={post.title} className={`h-full w-full object-cover ${post.paywalled ? "blur-md" : ""}`} />
+              {(tab === "Fotos" || tab === "Videos" ? galleryMedia : filteredPosts).map((entry) => {
+                if ("preview" in entry) {
+                  const preview = entry.preview
+                    ? entry.preview.url.startsWith("http")
+                      ? entry.preview.url
+                      : `${API_URL}${entry.preview.url}`
+                    : null;
+                  return (
+                    <button
+                      key={entry.id}
+                      className="relative aspect-square rounded-xl border border-white/10 bg-white/5 overflow-hidden"
+                      onClick={() => setSelected(entry)}
+                    >
+                      {preview ? (
+                        entry.preview?.type === "IMAGE" ? (
+                          <img src={preview} alt={entry.title} className={`h-full w-full object-cover ${entry.paywalled ? "blur-md" : ""}`} />
+                        ) : (
+                          <video
+                            src={preview}
+                            className={`h-full w-full object-cover ${entry.paywalled ? "blur-md" : ""}`}
+                            muted
+                            autoPlay
+                            loop
+                            playsInline
+                          />
+                        )
                       ) : (
-                        <video
-                          src={preview}
-                          className={`h-full w-full object-cover ${post.paywalled ? "blur-md" : ""}`}
-                          muted
-                          autoPlay
-                          loop
-                          playsInline
-                        />
-                      )
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-white/10 to-white/5" />
-                    )}
-                    {post.paywalled ? (
-                      <span className="absolute inset-0 flex items-center justify-center text-xs text-white/80">
-                        Solo miembros
-                      </span>
-                    ) : null}
-                  </button>
+                        <div className="h-full w-full bg-gradient-to-br from-white/10 to-white/5" />
+                      )}
+                      {entry.paywalled ? (
+                        <span className="absolute inset-0 flex items-center justify-center text-xs text-white/80">
+                          Solo miembros
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                }
+
+                const mediaUrl = entry.url.startsWith("http") ? entry.url : `${API_URL}${entry.url}`;
+                return entry.type === "IMAGE" ? (
+                  <img
+                    key={entry.id}
+                    src={mediaUrl}
+                    alt="Galería"
+                    className="aspect-square rounded-xl border border-white/10 object-cover"
+                  />
+                ) : (
+                  <video
+                    key={entry.id}
+                    src={mediaUrl}
+                    className="aspect-square rounded-xl border border-white/10 object-cover"
+                    controls
+                  />
                 );
               })}
             </div>
-            {!filteredPosts.length ? (
+            {tab === "Publicaciones" && !filteredPosts.length ? (
               <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
                 Sin publicaciones disponibles por ahora.
+              </div>
+            ) : null}
+            {(tab === "Fotos" || tab === "Videos") && !galleryMedia.length ? (
+              <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+                Aún no hay contenido en la galería.
               </div>
             ) : null}
           </>

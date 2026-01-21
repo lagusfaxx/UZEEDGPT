@@ -23,6 +23,7 @@ type ServiceProfile = {
 };
 
 type ServiceResponse = { profiles: ServiceProfile[] };
+type MapResponse = { profiles: ServiceProfile[] };
 
 const ServicesMap = dynamic(() => import("../../components/ServicesMap"), { ssr: false });
 
@@ -33,23 +34,24 @@ const typeFilters = [
 
 export default function ServicesPage() {
   const [profiles, setProfiles] = useState<ServiceProfile[]>([]);
+  const [mapProfiles, setMapProfiles] = useState<ServiceProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [activeTypes, setActiveTypes] = useState<string[]>(typeFilters.map((f) => f.value));
+  const [activeType, setActiveType] = useState<string>(typeFilters[0].value);
   const [center, setCenter] = useState<[number, number]>([-33.4489, -70.6693]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set("q", search.trim());
-    if (activeTypes.length) params.set("types", activeTypes.join(","));
+    if (activeType) params.set("types", activeType);
     if (userLocation) {
       params.set("lat", String(userLocation[0]));
       params.set("lng", String(userLocation[1]));
     }
     return params.toString();
-  }, [search, activeTypes, userLocation]);
+  }, [search, activeType, userLocation]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -65,8 +67,14 @@ export default function ServicesPage() {
   }, []);
 
   useEffect(() => {
-    apiFetch<ServiceResponse>(`/services?${queryString}`)
-      .then((r) => setProfiles(r.profiles))
+    Promise.all([
+      apiFetch<ServiceResponse>(`/services?${queryString}`),
+      apiFetch<MapResponse>(`/map?${queryString}`)
+    ])
+      .then(([list, map]) => {
+        setProfiles(list.profiles);
+        setMapProfiles(map.profiles);
+      })
       .catch((e: any) => setError(e?.message || "Error"))
       .finally(() => setLoading(false));
   }, [queryString]);
@@ -96,16 +104,12 @@ export default function ServicesPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {typeFilters.map((f) => {
-              const active = activeTypes.includes(f.value);
+              const active = activeType === f.value;
               return (
                 <button
                   key={f.value}
                   className={active ? "btn-primary" : "btn-secondary"}
-                  onClick={() =>
-                    setActiveTypes((prev) =>
-                      active ? prev.filter((t) => t !== f.value) : [...prev, f.value]
-                    )
-                  }
+                  onClick={() => setActiveType(f.value)}
                 >
                   {f.label}
                 </button>
@@ -121,7 +125,7 @@ export default function ServicesPage() {
           Visualiza profesionales y negocios activos. Toca un pin para abrir el perfil o iniciar chat.
         </p>
         <div className="mt-4">
-          <ServicesMap profiles={profiles} center={center} />
+          <ServicesMap profiles={mapProfiles} center={center} />
         </div>
       </div>
 
