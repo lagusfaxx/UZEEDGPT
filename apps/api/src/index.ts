@@ -19,12 +19,15 @@ import { profileRouter } from "./profile/routes";
 import { servicesRouter } from "./services/routes";
 import { messagesRouter } from "./messages/routes";
 import { creatorRouter } from "./creator/routes";
+import { billingRouter } from "./billing/routes";
 
 const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 app.use(cors({
   origin: config.corsOrigin.split(",").map((s) => s.trim()),
@@ -79,9 +82,17 @@ app.use(
 );
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/version", (_req, res) => res.json({ sha: process.env.GIT_SHA || "unknown" }));
 
 // static uploads
-app.use("/uploads", express.static(path.resolve(config.storageDir), { maxAge: "1h" }));
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.resolve(config.storageDir), { maxAge: "1h" })
+);
 
 app.use("/auth", authRouter);
 app.use("/", feedRouter);
@@ -91,11 +102,15 @@ app.use("/", profileRouter);
 app.use("/", servicesRouter);
 app.use("/", messagesRouter);
 app.use("/", creatorRouter);
+app.use("/", billingRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   if (err?.message === "INVALID_FILE_TYPE") {
     return res.status(400).json({ error: "INVALID_FILE_TYPE" });
+  }
+  if (err?.message === "FILE_TOO_LARGE") {
+    return res.status(400).json({ error: "FILE_TOO_LARGE" });
   }
   if (err?.code === "LIMIT_FILE_SIZE") {
     return res.status(400).json({ error: "FILE_TOO_LARGE" });

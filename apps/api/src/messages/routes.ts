@@ -7,6 +7,19 @@ export const messagesRouter = Router();
 messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
   const me = req.session.userId!;
   const other = req.params.userId;
+  const otherUser = await prisma.user.findUnique({
+    where: { id: other },
+    select: {
+      id: true,
+      displayName: true,
+      username: true,
+      avatarUrl: true,
+      profileType: true,
+      city: true
+    }
+  });
+  if (!otherUser) return res.status(404).json({ error: "USER_NOT_FOUND" });
+
   const messages = await prisma.message.findMany({
     where: {
       OR: [
@@ -17,7 +30,11 @@ messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
     orderBy: { createdAt: "asc" },
     take: 200
   });
-  return res.json({ messages });
+  await prisma.message.updateMany({
+    where: { fromId: other, toId: me, readAt: null },
+    data: { readAt: new Date() }
+  });
+  return res.json({ messages, other: otherUser });
 });
 
 messagesRouter.post("/messages/:userId", requireAuth, async (req, res) => {
@@ -33,4 +50,56 @@ messagesRouter.post("/messages/:userId", requireAuth, async (req, res) => {
     }
   });
   return res.json({ message });
+});
+
+messagesRouter.get("/messages/inbox", requireAuth, async (req, res) => {
+  const me = req.session.userId!;
+  const messages = await prisma.message.findMany({
+    where: {
+      OR: [{ fromId: me }, { toId: me }]
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200
+  });
+
+  const conversationMap = new Map<string, typeof messages[number]>();
+  for (const message of messages) {
+    const otherId = message.fromId === me ? message.toId : message.fromId;
+    if (!conversationMap.has(otherId)) {
+      conversationMap.set(otherId, message);
+    }
+  }
+
+  const otherIds = Array.from(conversationMap.keys());
+  const others = otherIds.length
+    ? await prisma.user.findMany({
+      where: { id: { in: otherIds } },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        avatarUrl: true,
+        profileType: true,
+        city: true
+      }
+    })
+    : [];
+  const otherMap = new Map(others.map((u) => [u.id, u]));
+
+  const unreadCounts = otherIds.length
+    ? await prisma.message.groupBy({
+      by: ["fromId"],
+      where: { toId: me, readAt: null, fromId: { in: otherIds } },
+      _count: { _all: true }
+    })
+    : [];
+  const unreadMap = new Map(unreadCounts.map((r) => [r.fromId, r._count._all]));
+
+  const conversations = otherIds.map((otherId) => ({
+    other: otherMap.get(otherId),
+    lastMessage: conversationMap.get(otherId),
+    unreadCount: unreadMap.get(otherId) || 0
+  })).filter((c) => c.other && c.lastMessage);
+
+  return res.json({ conversations });
 });
