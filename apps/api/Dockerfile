@@ -30,7 +30,7 @@ COPY packages ./packages
 COPY prisma ./prisma
 COPY apps/api ./apps/api
 # Generate Prisma client during build (NEVER at runtime)
-RUN pnpm --filter @uzeed/prisma generate
+RUN pnpm --filter @uzeed/prisma exec prisma generate
 RUN pnpm --filter @uzeed/shared build
 RUN pnpm --filter @uzeed/api build
 
