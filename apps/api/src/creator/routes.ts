@@ -11,6 +11,14 @@ export const creatorRouter = Router();
 creatorRouter.use(requireAuth);
 
 const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const mediaFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  const mime = (file.mimetype || "").toLowerCase();
+  if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
+    return cb(new Error("INVALID_FILE_TYPE"));
+  }
+  return cb(null, true);
+};
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: async (_req, _file, cb) => {
@@ -24,7 +32,8 @@ const upload = multer({
       cb(null, name);
     }
   }),
-  limits: { fileSize: 100 * 1024 * 1024 }
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: mediaFilter
 });
 
 async function ensureCreator(userId: string) {
@@ -81,4 +90,30 @@ creatorRouter.post("/creator/posts", upload.array("files", 10), async (req, res)
   }
 
   return res.json({ post: { ...post, media } });
+});
+
+creatorRouter.put("/creator/posts/:id", async (req, res) => {
+  const ok = await ensureCreator(req.session.userId!);
+  if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
+
+  const parsed = CreatePostSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
+
+  const updated = await prisma.post.updateMany({
+    where: { id: req.params.id, authorId: req.session.userId! },
+    data: parsed.data
+  });
+  if (!updated.count) return res.status(404).json({ error: "NOT_FOUND" });
+  const post = await prisma.post.findUnique({ where: { id: req.params.id } });
+  return res.json({ post });
+});
+
+creatorRouter.delete("/creator/posts/:id", async (req, res) => {
+  const ok = await ensureCreator(req.session.userId!);
+  if (!ok) return res.status(403).json({ error: "FORBIDDEN" });
+
+  const post = await prisma.post.findUnique({ where: { id: req.params.id } });
+  if (!post || post.authorId !== req.session.userId!) return res.status(404).json({ error: "NOT_FOUND" });
+  await prisma.post.delete({ where: { id: req.params.id } });
+  return res.json({ ok: true });
 });

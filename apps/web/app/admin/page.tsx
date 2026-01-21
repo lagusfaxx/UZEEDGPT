@@ -33,6 +33,25 @@ export default function AdminPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [creating, setCreating] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const handleFileSelect = (fileList: FileList | null) => {
+    if (!fileList) {
+      setFiles(null);
+      return;
+    }
+    const valid = Array.from(fileList).every((file) => {
+      const okType = file.type.startsWith("image/") || file.type.startsWith("video/");
+      const okSize = file.size <= 100 * 1024 * 1024;
+      return okType && okSize;
+    });
+    if (!valid) {
+      setFileError("Solo se permiten imágenes o videos (máximo 100MB).");
+      return;
+    }
+    setFileError(null);
+    setFiles(fileList);
+  };
 
   async function load() {
     const m = await apiFetch<MeResponse>("/auth/me");
@@ -160,8 +179,9 @@ export default function AdminPage() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm text-white/70">Media (imágenes/videos)</label>
-            <input type="file" multiple onChange={(e) => setFiles(e.target.files)} />
+            <input type="file" multiple accept="image/*,video/*" onChange={(e) => handleFileSelect(e.target.files)} />
             <p className="text-xs text-white/50">Máx 10 archivos por post (50MB c/u).</p>
+            {fileError ? <p className="text-xs text-red-200">{fileError}</p> : null}
           </div>
 
           <button disabled={creating} className="btn-primary">
