@@ -119,10 +119,6 @@ export default function StudioPage() {
     setPreviews(nextPreviews);
   };
 
-  if (loading) return <div className="text-white/70">Cargando publicaciones...</div>;
-  if (err) return <div className="text-red-200">{err}</div>;
-  if (!me) return null;
-
   const startEdit = (post: Post) => {
     setEditingId(post.id);
     setEditTitle(post.title);
@@ -158,6 +154,12 @@ export default function StudioPage() {
       setErr(e?.message || "No se pudo eliminar el post");
     }
   };
+
+  if (loading) return <div className="text-white/70">Cargando publicaciones...</div>;
+  if (err) return <div className="text-red-200">{err}</div>;
+  if (!me) return null;
+
+  const hasPosts = posts.length > 0;
 
   return (
     <div className="grid gap-6">
@@ -289,7 +291,7 @@ export default function StudioPage() {
               ) : null}
             </div>
           ))}
-          {!posts.length ? <div className="text-white/60">Aún no hay posts.</div> : null}
+          {!hasPosts ? <div className="text-white/60">Aún no hay posts.</div> : null}
         </div>
       </div>
     </div>
