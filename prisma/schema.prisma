@@ -90,6 +90,7 @@ model User {
   profileSubscriptionsByMe ProfileSubscription[] @relation("ProfileSubscriber")
   services                 ServiceItem[]
   profileMedia             ProfileMedia[]
+  paymentIntents           PaymentIntent[]
   sentMessages             Message[]           @relation("SentMessages")
   receivedMessages         Message[]           @relation("ReceivedMessages")
   receivedRatings          ServiceRating[]     @relation("ProfileRatings")
@@ -115,43 +116,7 @@ model Media {
   postId    String    @db.Uuid
   type      MediaType
   url       String
-  createdAt DateTime  @default(now())
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-}
-
-model Payment {
-  id                String        @id @default(uuid()) @db.Uuid
-  userId            String        @db.Uuid
-  subscriptionId    String?       @db.Uuid
-  provider          String        @default("khipu")
-  providerPaymentId String        @unique
-  transactionId     String        @unique
-  status            PaymentStatus @default(PENDING)
-  amount            Int
-  currency          String        @default("CLP")
-  paidAt            DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription KhipuSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-}
-
-model KhipuSubscription {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @db.Uuid
-  subscriptionId String   @unique
-  status         String
-  redirectUrl    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments Payment[]
-}
-
-model ProfileSubscription {
+@@ -142,50 +156,87 @@ model ProfileSubscription {
   id           String   @id @default(uuid()) @db.Uuid
   subscriberId String   @db.Uuid
   profileId    String   @db.Uuid
@@ -239,4 +204,3 @@ model ServiceRating {
   rater   User @relation("GivenRatings", fields: [raterId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, raterId])
-}
