@@ -60,6 +60,7 @@ export type SafeUser = {
   preferenceGender: PreferenceGender | null;
   role: Role;
   membershipExpiresAt: string | null;
+  subscriptionPrice?: number | null;
 };
 
 export type FeedPost = {
