@@ -113,35 +113,44 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       {mode === "register" ? (
         <div className="grid gap-2">
           <label className="text-sm text-white/70">Género</label>
-          <select className="input" value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="FEMALE">Mujer</option>
-            <option value="MALE">Hombre</option>
-            <option value="OTHER">Otro</option>
-          </select>
+          <div className="relative">
+            <select className="input select-dark" value={gender} onChange={(e) => setGender(e.target.value)}>
+              <option value="FEMALE">Mujer</option>
+              <option value="MALE">Hombre</option>
+              <option value="OTHER">Otro</option>
+            </select>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40">▾</span>
+          </div>
         </div>
       ) : null}
 
       {mode === "register" ? (
         <div className="grid gap-2">
           <label className="text-sm text-white/70">Tipo de perfil</label>
-          <select className="input" value={profileType} onChange={(e) => setProfileType(e.target.value)}>
-            <option value="VIEWER">Persona (ver y subir gratis)</option>
-            <option value="CREATOR">Creador (vende contenido)</option>
-            <option value="PROFESSIONAL">Profesional (contenido + servicios)</option>
-            <option value="SHOP">Tienda/Motel/Sexshop</option>
-          </select>
+          <div className="relative">
+            <select className="input select-dark" value={profileType} onChange={(e) => setProfileType(e.target.value)}>
+              <option value="VIEWER">Persona (ver y publicar)</option>
+              <option value="CREATOR">Creadora (suscripción mensual)</option>
+              <option value="PROFESSIONAL">Profesional (contenido + servicios)</option>
+              <option value="SHOP">Tienda / Motel / Sexshop</option>
+            </select>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40">▾</span>
+          </div>
         </div>
       ) : null}
 
       {mode === "register" ? (
         <div className="grid gap-2">
           <label className="text-sm text-white/70">Preferencia de género</label>
-          <select className="input" value={preferenceGender} onChange={(e) => setPreferenceGender(e.target.value)}>
-            <option value="ALL">Todos</option>
-            <option value="FEMALE">Mujer</option>
-            <option value="MALE">Hombre</option>
-            <option value="OTHER">Otro</option>
-          </select>
+          <div className="relative">
+            <select className="input select-dark" value={preferenceGender} onChange={(e) => setPreferenceGender(e.target.value)}>
+              <option value="ALL">Todos</option>
+              <option value="FEMALE">Mujer</option>
+              <option value="MALE">Hombre</option>
+              <option value="OTHER">Otro</option>
+            </select>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40">▾</span>
+          </div>
         </div>
       ) : null}
 

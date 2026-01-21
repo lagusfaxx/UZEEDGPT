@@ -94,6 +94,12 @@ app.use("/", creatorRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
+  if (err?.message === "INVALID_FILE_TYPE") {
+    return res.status(400).json({ error: "INVALID_FILE_TYPE" });
+  }
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "FILE_TOO_LARGE" });
+  }
   res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
 });
 

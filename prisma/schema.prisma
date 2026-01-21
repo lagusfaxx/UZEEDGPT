@@ -59,9 +59,11 @@ model User {
   latitude            Float?
   longitude           Float?
   avatarUrl           String?
+  coverUrl            String?
   bio                 String?
   serviceCategory     String?
   serviceDescription  String?
+  subscriptionPrice   Int?              @default(2500)
   shopTrialEndsAt     DateTime?
   termsAcceptedAt     DateTime?
   role                Role              @default(USER)
@@ -69,14 +71,16 @@ model User {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  posts             Post[]
-  payments          Payment[]
-  subscriptions     KhipuSubscription[]
-  services          ServiceItem[]
-  sentMessages      Message[]           @relation("SentMessages")
-  receivedMessages  Message[]           @relation("ReceivedMessages")
-  receivedRatings   ServiceRating[]     @relation("ProfileRatings")
-  givenRatings      ServiceRating[]     @relation("GivenRatings")
+  posts                    Post[]
+  payments                 Payment[]
+  subscriptions            KhipuSubscription[]
+  profileSubscriptions     ProfileSubscription[] @relation("ProfileSubscriptions")
+  profileSubscriptionsByMe ProfileSubscription[] @relation("ProfileSubscriber")
+  services                 ServiceItem[]
+  sentMessages             Message[]           @relation("SentMessages")
+  receivedMessages         Message[]           @relation("ReceivedMessages")
+  receivedRatings          ServiceRating[]     @relation("ProfileRatings")
+  givenRatings             ServiceRating[]     @relation("GivenRatings")
 }
 
 model Post {
@@ -132,6 +136,21 @@ model KhipuSubscription {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments Payment[]
+}
+
+model ProfileSubscription {
+  id           String   @id @default(uuid()) @db.Uuid
+  subscriberId String   @db.Uuid
+  profileId    String   @db.Uuid
+  status       String   @default("ACTIVE")
+  price        Int
+  startedAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  subscriber User @relation("ProfileSubscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  profile    User @relation("ProfileSubscriptions", fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, profileId])
 }
 
 model ServiceItem {

@@ -11,6 +11,14 @@ export const adminRouter = Router();
 
 const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
 
+const mediaFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  const mime = (file.mimetype || "").toLowerCase();
+  if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
+    return cb(new Error("INVALID_FILE_TYPE"));
+  }
+  return cb(null, true);
+};
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: async (_req, _file, cb) => {
@@ -24,7 +32,8 @@ const upload = multer({
       cb(null, name);
     }
   }),
-  limits: { fileSize: 100 * 1024 * 1024 }
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: mediaFilter
 });
 
 adminRouter.use(requireAdmin);
