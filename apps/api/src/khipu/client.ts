@@ -1,7 +1,19 @@
 import { config } from "../config";
 
+export class KhipuError extends Error {
+  status: number;
+  payload: unknown;
+  constructor(status: number, message: string, payload: unknown) {
+    super(message);
+    this.name = "KhipuError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function khipuFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = `${config.khipuBaseUrl}${path}`;
+  const baseUrl = config.khipuBaseUrl.replace(/\/$/, "");
+  const url = `${baseUrl}${path}`;
   const headers = new Headers(init.headers || {});
   headers.set("x-api-key", config.khipuApiKey);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
@@ -11,7 +23,9 @@ async function khipuFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
     const msg = typeof data === "string" ? data : JSON.stringify(data);
-    throw new Error(`Khipu ${res.status}: ${msg}`);
+    const safeMsg = msg.length > 500 ? `${msg.slice(0, 500)}...` : msg;
+    console.error("[khipu] error", { status: res.status, path, message: safeMsg });
+    throw new KhipuError(res.status, `Khipu ${res.status}: ${safeMsg}`, data);
   }
   return data as T;
 }

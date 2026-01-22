@@ -7,10 +7,14 @@ import path from "path";
 import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
 import { validateUploadedFile } from "../lib/uploads";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const servicesRouter = Router();
 
-const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const storageProvider = new LocalStorageProvider({
+  baseDir: config.storageDir,
+  publicPathPrefix: `${config.apiUrl.replace(/\/$/, "")}/uploads`
+});
 const upload = multer({
   storage: multer.diskStorage({
     destination: async (_req, _file, cb) => {
@@ -39,7 +43,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
-servicesRouter.get("/services", async (req, res) => {
+servicesRouter.get("/services", asyncHandler(async (req, res) => {
   const lat = req.query.lat ? Number(req.query.lat) : null;
   const lng = req.query.lng ? Number(req.query.lng) : null;
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -94,9 +98,9 @@ servicesRouter.get("/services", async (req, res) => {
   });
 
   return res.json({ profiles: sorted });
-});
+}));
 
-servicesRouter.get("/map", async (req, res) => {
+servicesRouter.get("/map", asyncHandler(async (req, res) => {
   const lat = req.query.lat ? Number(req.query.lat) : null;
   const lng = req.query.lng ? Number(req.query.lng) : null;
   const types = typeof req.query.types === "string" ? req.query.types.split(",").map((t) => t.trim()) : [];
@@ -130,18 +134,18 @@ servicesRouter.get("/map", async (req, res) => {
   });
 
   return res.json({ profiles: enriched });
-});
+}));
 
-servicesRouter.get("/services/:userId/items", async (req, res) => {
+servicesRouter.get("/services/:userId/items", asyncHandler(async (req, res) => {
   const items = await prisma.serviceItem.findMany({
     where: { ownerId: req.params.userId },
     orderBy: { createdAt: "desc" },
     include: { media: true }
   });
   return res.json({ items });
-});
+}));
 
-servicesRouter.post("/services/items", requireAuth, async (req, res) => {
+servicesRouter.post("/services/items", requireAuth, asyncHandler(async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
   if (!["SHOP", "PROFESSIONAL"].includes(me.profileType)) {
@@ -160,9 +164,9 @@ servicesRouter.post("/services/items", requireAuth, async (req, res) => {
     }
   });
   return res.json({ item });
-});
+}));
 
-servicesRouter.put("/services/items/:id", requireAuth, async (req, res) => {
+servicesRouter.put("/services/items/:id", requireAuth, asyncHandler(async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
   const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
@@ -179,18 +183,18 @@ servicesRouter.put("/services/items/:id", requireAuth, async (req, res) => {
     include: { media: true }
   });
   return res.json({ item: updated });
-});
+}));
 
-servicesRouter.delete("/services/items/:id", requireAuth, async (req, res) => {
+servicesRouter.delete("/services/items/:id", requireAuth, asyncHandler(async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
   const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
   if (!item || item.ownerId !== me.id) return res.status(404).json({ error: "NOT_FOUND" });
   await prisma.serviceItem.delete({ where: { id: item.id } });
   return res.json({ ok: true });
-});
+}));
 
-servicesRouter.post("/services/items/:id/media", requireAuth, upload.array("files", 8), async (req, res) => {
+servicesRouter.post("/services/items/:id/media", requireAuth, upload.array("files", 8), asyncHandler(async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
   const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
@@ -205,9 +209,9 @@ servicesRouter.post("/services/items/:id/media", requireAuth, upload.array("file
     media.push(await prisma.serviceMedia.create({ data: { serviceItemId: item.id, type, url } }));
   }
   return res.json({ media });
-});
+}));
 
-servicesRouter.delete("/services/items/:id/media/:mediaId", requireAuth, async (req, res) => {
+servicesRouter.delete("/services/items/:id/media/:mediaId", requireAuth, asyncHandler(async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.session.userId! } });
   if (!me) return res.status(404).json({ error: "USER_NOT_FOUND" });
   const item = await prisma.serviceItem.findUnique({ where: { id: req.params.id } });
@@ -216,9 +220,9 @@ servicesRouter.delete("/services/items/:id/media/:mediaId", requireAuth, async (
   if (!media || media.serviceItemId !== item.id) return res.status(404).json({ error: "NOT_FOUND" });
   await prisma.serviceMedia.delete({ where: { id: media.id } });
   return res.json({ ok: true });
-});
+}));
 
-servicesRouter.post("/services/:userId/rating", requireAuth, async (req, res) => {
+servicesRouter.post("/services/:userId/rating", requireAuth, asyncHandler(async (req, res) => {
   const rating = Number(req.body?.rating);
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
     return res.status(400).json({ error: "INVALID_RATING" });
@@ -231,4 +235,4 @@ servicesRouter.post("/services/:userId/rating", requireAuth, async (req, res) =>
     create: { profileId, raterId, rating }
   });
   return res.json({ rating: created });
-});
+}));

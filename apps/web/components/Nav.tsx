@@ -23,7 +23,8 @@ export default function Nav() {
 
   const navItems = useMemo(
     () => [
-      { label: "Explorar", href: "/explore" },
+      { label: "Feed", href: "/feed" },
+      { label: "Videos", href: "/videos" },
       { label: "Servicios", href: "/services" }
     ],
     []
@@ -40,7 +41,7 @@ export default function Nav() {
     try {
       await apiFetch("/auth/logout", { method: "POST" });
     } finally {
-      window.location.href = "/";
+      window.location.href = "/feed";
     }
   }
 

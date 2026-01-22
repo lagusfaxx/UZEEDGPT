@@ -24,6 +24,7 @@ type MeResponse = {
     city?: string | null;
     address?: string | null;
     phone?: string | null;
+    allowFreeMessages?: boolean | null;
   } | null;
 };
 
@@ -50,7 +51,20 @@ type ServiceItem = {
   media?: { id: string; type: "IMAGE" | "VIDEO"; url: string }[];
 };
 
-type GalleryMedia = { id: string; type: "IMAGE" | "VIDEO"; url: string };
+type NotificationItem = {
+  id: string;
+  type: string;
+  data: any;
+  readAt: string | null;
+  createdAt: string;
+};
+
+type StatsResponse = {
+  posts: number;
+  messagesReceived: number;
+  subscribers: number;
+  services: number;
+};
 
 export default function DashboardPage() {
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
@@ -66,10 +80,10 @@ export default function DashboardPage() {
   const [serviceCategoryName, setServiceCategoryName] = useState("");
   const [servicePrice, setServicePrice] = useState<number | "">("");
   const [serviceBody, setServiceBody] = useState("");
-  const [galleryMedia, setGalleryMedia] = useState<GalleryMedia[]>([]);
-  const [galleryFiles, setGalleryFiles] = useState<FileList | null>(null);
-  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [serviceMediaFiles, setServiceMediaFiles] = useState<Record<string, FileList | null>>({});
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [activeTab, setActiveTab] = useState("perfil");
 
   const exp = useMemo(() => {
     if (!dashboard?.membershipExpiresAt) return null;
@@ -89,6 +103,7 @@ export default function DashboardPage() {
   const [subscriptionPrice, setSubscriptionPrice] = useState(2500);
   const [serviceCategory, setServiceCategory] = useState("");
   const [serviceDescription, setServiceDescription] = useState("");
+  const [allowFreeMessages, setAllowFreeMessages] = useState(false);
 
   const handleImageSelection = (file: File | null, setter: (file: File | null) => void) => {
     if (!file) {
@@ -104,24 +119,6 @@ export default function DashboardPage() {
       return;
     }
     setter(file);
-  };
-
-  const handleGallerySelection = (files: FileList | null) => {
-    if (!files) {
-      setGalleryFiles(null);
-      return;
-    }
-    const valid = Array.from(files).every((file) => {
-      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return false;
-      if (file.type.startsWith("image/") && file.size > 10 * 1024 * 1024) return false;
-      if (file.type.startsWith("video/") && file.size > 100 * 1024 * 1024) return false;
-      return true;
-    });
-    if (!valid) {
-      setError("Archivos inválidos. Imágenes hasta 10MB, videos hasta 100MB.");
-      return;
-    }
-    setGalleryFiles(files);
   };
 
   const addServiceItem = async (e: React.FormEvent) => {
@@ -180,6 +177,7 @@ export default function DashboardPage() {
         setSubscriptionPrice(m.user.subscriptionPrice || d.subscriptionPrice || 2500);
         setServiceCategory(m.user.serviceCategory || "");
         setServiceDescription(m.user.serviceDescription || "");
+        setAllowFreeMessages(Boolean(m.user.allowFreeMessages));
       })
       .catch((e: any) => setError(e?.message || "Error"))
       .finally(() => setLoading(false));
@@ -193,15 +191,21 @@ export default function DashboardPage() {
   }, [me?.id]);
 
   useEffect(() => {
-    apiFetch<{ media: GalleryMedia[] }>("/profile/media")
-      .then((r) => setGalleryMedia(r.media))
+    apiFetch<{ notifications: NotificationItem[] }>("/notifications")
+      .then((r) => setNotifications(r.notifications))
+      .catch(() => null);
+  }, []);
+
+  useEffect(() => {
+    apiFetch<StatsResponse>("/stats/me")
+      .then((r) => setStats(r))
       .catch(() => null);
   }, []);
 
   async function startSubscription() {
     setError(null);
     try {
-      const r = await apiFetch<{ paymentUrl: string }>("/billing/shop-plan/start", { method: "POST" });
+      const r = await apiFetch<{ paymentUrl: string }>("/billing/shop-plans/start", { method: "POST" });
       window.location.href = r.paymentUrl;
     } catch (e: any) {
       setError(e?.message || "No se pudo iniciar la suscripción");
@@ -226,7 +230,8 @@ export default function DashboardPage() {
           preferenceGender,
           subscriptionPrice,
           serviceCategory,
-          serviceDescription
+          serviceDescription,
+          allowFreeMessages: allowFreeMessages ? "true" : "false"
         })
       });
       if (avatarFile) {
@@ -249,31 +254,21 @@ export default function DashboardPage() {
     }
   }
 
-  const uploadGallery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!galleryFiles) return;
-    setUploadingGallery(true);
+  const markNotificationRead = async (id: string) => {
     try {
-      const form = new FormData();
-      Array.from(galleryFiles).forEach((file) => form.append("files", file));
-      const res = await fetch(`${API_URL}/profile/media`, { method: "POST", credentials: "include", body: form });
-      if (!res.ok) throw new Error("UPLOAD_FAILED");
-      const data = await res.json();
-      setGalleryMedia((prev) => [...data.media, ...prev]);
-      setGalleryFiles(null);
-    } catch (e: any) {
-      setError(e?.message || "No se pudo subir la galería");
-    } finally {
-      setUploadingGallery(false);
+      await apiFetch(`/notifications/${id}/read`, { method: "POST" });
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)));
+    } catch {
+      null;
     }
   };
 
-  const deleteGalleryMedia = async (id: string) => {
+  const logout = async () => {
     try {
-      await apiFetch(`/profile/media/${id}`, { method: "DELETE" });
-      setGalleryMedia((prev) => prev.filter((m) => m.id !== id));
+      await apiFetch("/auth/logout", { method: "POST" });
+      window.location.href = "/login";
     } catch (e: any) {
-      setError(e?.message || "No se pudo eliminar el media");
+      setError(e?.message || "No se pudo cerrar sesión");
     }
   };
 
@@ -353,8 +348,8 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Link className="btn-secondary" href="/explore">
-                Explorar
+              <Link className="btn-secondary" href="/feed">
+                Feed
               </Link>
               {canPost ? (
                 <Link className="btn-secondary" href="/studio">
@@ -364,323 +359,418 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {isShop ? (
-              <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-                <div className="text-sm text-white/60">Plan negocio</div>
-                <div className="mt-2 text-xl font-semibold">{active ? "Activo" : "Inactivo"}</div>
-                <div className="mt-1 text-sm text-white/70">
-                  {exp ? `Renueva: ${exp.toLocaleString("es-CL")}` : "Plan mensual $20.000 CLP"}
-                </div>
-                {dashboard.shopTrialEndsAt ? (
-                  <p className="mt-2 text-xs text-amber-200">
-                    Prueba gratis hasta {new Date(dashboard.shopTrialEndsAt).toLocaleDateString("es-CL")}.
-                  </p>
-                ) : null}
-                <div className="mt-3">
-                  <button className="btn-primary" onClick={startSubscription}>
-                    {subscription ? "Renovar plan" : "Activar plan $20.000/mes"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-                <div className="text-sm text-white/60">Suscripciones</div>
-                <div className="mt-2 text-xl font-semibold">
-                  {isCreator ? `$${subscriptionPrice.toLocaleString("es-CL")}/mes` : "Sin suscripciones"}
-                </div>
-                <div className="mt-1 text-sm text-white/70">
-                  {isCreator
-                    ? "Este es el precio mensual que verán tus seguidores."
-                    : "Suscríbete a creadoras desde Explorar."}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-              <div className="text-sm text-white/60">Pagos</div>
-              <div className="mt-3 flex gap-3 flex-wrap">
-                {isShop ? (
-                  <button className="btn-secondary" onClick={startSubscription}>
-                    {subscription ? "Renovar plan" : "Activar plan"}
-                  </button>
-                ) : (
-                  <span className="text-xs text-white/60">Tus pagos se realizan vía Khipu.</span>
-                )}
-              </div>
-              <p className="mt-2 text-xs text-white/50">
-                Los pagos y renovaciones se gestionan con Khipu. Puedes actualizar tu plan cuando quieras.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
-
-      <div className="card p-6 md:p-8">
-        <h2 className="text-lg font-semibold">Perfil público</h2>
-        <form onSubmit={saveProfile} className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-[220px_1fr]">
+        <div className="card p-4 h-fit md:sticky md:top-6">
           <div className="grid gap-2">
-            <label className="text-sm text-white/70">Nombre público</label>
-            <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Username</label>
-            <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div className="grid gap-2 md:col-span-2">
-            <label className="text-sm text-white/70">Bio</label>
-            <textarea
-              className="input min-h-[120px]"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Describe tu estilo, servicios y lo que ofreces."
-            />
-          </div>
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Teléfono</label>
-            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Ciudad/Comuna</label>
-            <input className="input" value={city} onChange={(e) => setCity(e.target.value)} />
-          </div>
-          <div className="grid gap-2 md:col-span-2">
-            <label className="text-sm text-white/70">Dirección</label>
-            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
-          </div>
-          {isCreator ? (
-            <div className="grid gap-2">
-              <label className="text-sm text-white/70">Precio mensual</label>
-              <input
-                className="input"
-                type="number"
-                min={100}
-                max={20000}
-                value={subscriptionPrice}
-                onChange={(e) => setSubscriptionPrice(Number(e.target.value))}
-              />
-              <p className="text-xs text-white/50">Entre $100 y $20.000 CLP.</p>
-            </div>
-          ) : null}
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Género</label>
-            <select className="input select-dark" value={gender} onChange={(e) => setGender(e.target.value)}>
-              <option value="FEMALE">Mujer</option>
-              <option value="MALE">Hombre</option>
-              <option value="OTHER">Otro</option>
-            </select>
-          </div>
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Preferencia de género</label>
-            <select className="input select-dark" value={preferenceGender} onChange={(e) => setPreferenceGender(e.target.value)}>
-              <option value="ALL">Todos</option>
-              <option value="FEMALE">Mujer</option>
-              <option value="MALE">Hombre</option>
-              <option value="OTHER">Otro</option>
-            </select>
-          </div>
-
-          {me.profileType === "PROFESSIONAL" || me.profileType === "SHOP" ? (
-            <>
-              <div className="grid gap-2">
-                <label className="text-sm text-white/70">Categoría</label>
-                <input
-                  className="input"
-                  value={serviceCategory}
-                  onChange={(e) => setServiceCategory(e.target.value)}
-                  placeholder="Masajes, entretenimiento, sexshop..."
-                />
-              </div>
-              <div className="grid gap-2 md:col-span-2">
-                <label className="text-sm text-white/70">Descripción de servicios</label>
-                <textarea
-                  className="input min-h-[120px]"
-                  value={serviceDescription}
-                  onChange={(e) => setServiceDescription(e.target.value)}
-                />
-              </div>
-            </>
-          ) : null}
-
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Foto de perfil (solo imagen)</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageSelection(e.target.files?.[0] || null, setAvatarFile)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <label className="text-sm text-white/70">Portada (solo imagen)</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageSelection(e.target.files?.[0] || null, setCoverFile)}
-            />
-          </div>
-          <div className="md:col-span-2 flex items-center gap-3">
-            <button className="btn-primary" disabled={saving}>
-              {saving ? "Guardando..." : "Guardar perfil"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="card p-6 md:p-8">
-        <h2 className="text-lg font-semibold">Galería</h2>
-        <p className="mt-2 text-sm text-white/60">Sube fotos y videos para tu perfil público.</p>
-        <form onSubmit={uploadGallery} className="mt-4 grid gap-3">
-          <input type="file" accept="image/*,video/*" multiple onChange={(e) => handleGallerySelection(e.target.files)} />
-          <button className="btn-primary" disabled={uploadingGallery || !galleryFiles?.length} type="submit">
-            {uploadingGallery ? "Subiendo..." : "Subir a galería"}
-          </button>
-        </form>
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-          {galleryMedia.map((media) => (
-            <div key={media.id} className="relative rounded-xl border border-white/10 bg-white/5 overflow-hidden">
-              {media.type === "IMAGE" ? (
-                <img
-                  src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
-                  alt="media"
-                  className="h-32 w-full object-cover"
-                />
-              ) : (
-                <video
-                  src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
-                  className="h-32 w-full object-cover"
-                  muted
-                  controls
-                />
-              )}
+            {[
+              { id: "perfil", label: "Perfil" },
+              { id: "publicaciones", label: "Publicaciones" },
+              { id: "planes", label: "Suscripciones/Planes" },
+              ...(me.profileType === "PROFESSIONAL" || me.profileType === "SHOP"
+                ? [{ id: "servicios", label: "Servicios" }]
+                : []),
+              { id: "estadisticas", label: "Estadísticas" },
+              { id: "notificaciones", label: "Notificaciones" },
+              { id: "seguridad", label: "Seguridad" }
+            ].map((tab) => (
               <button
-                className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px]"
-                onClick={() => deleteGalleryMedia(media.id)}
-                type="button"
+                key={tab.id}
+                className={activeTab === tab.id ? "btn-primary w-full justify-start" : "btn-secondary w-full justify-start"}
+                onClick={() => setActiveTab(tab.id)}
               >
-                Eliminar
+                {tab.label}
               </button>
-            </div>
-          ))}
-          {!galleryMedia.length ? <div className="text-sm text-white/60">Aún no hay media.</div> : null}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {me.profileType === "PROFESSIONAL" || me.profileType === "SHOP" ? (
-        <div className="card p-6 md:p-8">
-          <h2 className="text-lg font-semibold">Catálogo y servicios</h2>
-          <form onSubmit={addServiceItem} className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <label className="text-sm text-white/70">Nombre del servicio</label>
-              <input
-                className="input"
-                value={serviceTitle}
-                onChange={(e) => setServiceTitle(e.target.value)}
-                placeholder="Ej: Suite deluxe, masaje premium"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm text-white/70">Categoría</label>
-              <input
-                className="input"
-                value={serviceCategoryName}
-                onChange={(e) => setServiceCategoryName(e.target.value)}
-                placeholder="Motel, sexshop, spa..."
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm text-white/70">Precio (CLP)</label>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={servicePrice}
-                onChange={(e) => setServicePrice(e.target.value === "" ? "" : Number(e.target.value))}
-                placeholder="20000"
-              />
-            </div>
-            <div className="grid gap-2 md:col-span-2">
-              <label className="text-sm text-white/70">Descripción</label>
-              <textarea
-                className="input min-h-[120px]"
-                value={serviceBody}
-                onChange={(e) => setServiceBody(e.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <button className="btn-primary" type="submit">
-                Agregar al catálogo
-              </button>
-            </div>
-          </form>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
-            {serviceItems.map((item) => (
-              <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-semibold">{item.title}</div>
-                    {item.category ? <div className="text-xs text-white/50">{item.category}</div> : null}
-                  </div>
-                  {item.price ? (
-                    <span className="text-xs text-white/70">${item.price.toLocaleString("es-CL")}</span>
-                  ) : null}
+        <div className="grid gap-6">
+          {activeTab === "perfil" ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Perfil público</h2>
+              <form onSubmit={saveProfile} className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Nombre público</label>
+                  <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                 </div>
-                {item.description ? <p className="mt-2 text-sm text-white/70">{item.description}</p> : null}
-                {item.media?.length ? (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {item.media.map((media) => (
-                      <div key={media.id} className="relative">
-                        {media.type === "IMAGE" ? (
-                          <img
-                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
-                            alt={item.title}
-                            className="h-20 w-full rounded-lg object-cover"
-                          />
-                        ) : (
-                          <video
-                            src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
-                            className="h-20 w-full rounded-lg object-cover"
-                            muted
-                          />
-                        )}
-                        <button
-                          className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px]"
-                          onClick={() => deleteServiceMedia(item.id, media.id)}
-                          type="button"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Username</label>
+                  <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <label className="text-sm text-white/70">Bio</label>
+                  <textarea
+                    className="input min-h-[120px]"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="Describe tu estilo, servicios y lo que ofreces."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Teléfono</label>
+                  <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Ciudad/Comuna</label>
+                  <input className="input" value={city} onChange={(e) => setCity(e.target.value)} />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <label className="text-sm text-white/70">Dirección</label>
+                  <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
+                </div>
+                {isCreator ? (
+                  <div className="grid gap-2">
+                    <label className="text-sm text-white/70">Precio mensual</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={100}
+                      max={20000}
+                      value={subscriptionPrice}
+                      onChange={(e) => setSubscriptionPrice(Number(e.target.value))}
+                    />
+                    <p className="text-xs text-white/50">Entre $100 y $20.000 CLP.</p>
                   </div>
                 ) : null}
-                <div className="mt-3 grid gap-2">
+                {isCreator ? (
+                  <div className="grid gap-2">
+                    <label className="text-sm text-white/70">Mensajes gratis</label>
+                    <label className="flex items-center gap-2 text-sm text-white/70">
+                      <input
+                        type="checkbox"
+                        checked={allowFreeMessages}
+                        onChange={(e) => setAllowFreeMessages(e.target.checked)}
+                      />
+                      Permitir mensajes sin suscripción
+                    </label>
+                  </div>
+                ) : null}
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Género</label>
+                  <select className="input select-dark" value={gender} onChange={(e) => setGender(e.target.value)}>
+                    <option value="FEMALE">Mujer</option>
+                    <option value="MALE">Hombre</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Preferencia de género</label>
+                  <select className="input select-dark" value={preferenceGender} onChange={(e) => setPreferenceGender(e.target.value)}>
+                    <option value="ALL">Todos</option>
+                    <option value="FEMALE">Mujer</option>
+                    <option value="MALE">Hombre</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </div>
+
+                {me.profileType === "PROFESSIONAL" || me.profileType === "SHOP" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <label className="text-sm text-white/70">Categoría</label>
+                      <input
+                        className="input"
+                        value={serviceCategory}
+                        onChange={(e) => setServiceCategory(e.target.value)}
+                        placeholder="Masajes, entretenimiento, sexshop..."
+                      />
+                    </div>
+                    <div className="grid gap-2 md:col-span-2">
+                      <label className="text-sm text-white/70">Descripción de servicios</label>
+                      <textarea
+                        className="input min-h-[120px]"
+                        value={serviceDescription}
+                        onChange={(e) => setServiceDescription(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
+
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Foto de perfil (solo imagen)</label>
                   <input
                     type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    onChange={(e) => handleServiceMediaSelection(item.id, e.target.files)}
+                    accept="image/*"
+                    onChange={(e) => handleImageSelection(e.target.files?.[0] || null, setAvatarFile)}
                   />
-                  <button className="btn-secondary" type="button" onClick={() => uploadServiceMedia(item.id)}>
-                    Subir media
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Portada (solo imagen)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageSelection(e.target.files?.[0] || null, setCoverFile)}
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-center gap-3">
+                  <button className="btn-primary" disabled={saving}>
+                    {saving ? "Guardando..." : "Guardar perfil"}
                   </button>
                 </div>
-                <div className="mt-3">
-                  <button className="btn-secondary" type="button" onClick={() => deleteServiceItem(item.id)}>
-                    Eliminar
+              </form>
+            </div>
+          ) : null}
+
+          {activeTab === "publicaciones" ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Publicaciones</h2>
+              <p className="mt-2 text-sm text-white/60">
+                Publica fotos y videos para el feed y la sección de videos.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link className="btn-primary" href="/studio">
+                  Crear publicación
+                </Link>
+                <Link className="btn-secondary" href="/videos">
+                  Ver videos
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "planes" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {isShop ? (
+                <div className="card p-6">
+                  <div className="text-sm text-white/60">Plan negocio</div>
+                  <div className="mt-2 text-xl font-semibold">{active ? "Activo" : "Inactivo"}</div>
+                  <div className="mt-1 text-sm text-white/70">
+                    {exp ? `Renueva: ${exp.toLocaleString("es-CL")}` : "Plan mensual $20.000 CLP"}
+                  </div>
+                  {dashboard.shopTrialEndsAt ? (
+                    <p className="mt-2 text-xs text-amber-200">
+                      Prueba gratis hasta {new Date(dashboard.shopTrialEndsAt).toLocaleDateString("es-CL")}.
+                    </p>
+                  ) : null}
+                  <div className="mt-3">
+                    <button className="btn-primary" onClick={startSubscription}>
+                      {subscription ? "Renovar plan" : "Activar plan $20.000/mes"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="card p-6">
+                  <div className="text-sm text-white/60">Suscripciones</div>
+                  <div className="mt-2 text-xl font-semibold">
+                    {isCreator ? `$${subscriptionPrice.toLocaleString("es-CL")}/mes` : "Sin suscripciones"}
+                  </div>
+                  <div className="mt-1 text-sm text-white/70">
+                    {isCreator
+                      ? "Este es el precio mensual que verán tus seguidores."
+                      : "Suscríbete a creadoras desde el feed."}
+                  </div>
+                </div>
+              )}
+
+              <div className="card p-6">
+                <div className="text-sm text-white/60">Pagos</div>
+                <div className="mt-3 flex gap-3 flex-wrap">
+                  {isShop ? (
+                    <button className="btn-secondary" onClick={startSubscription}>
+                      {subscription ? "Renovar plan" : "Activar plan"}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-white/60">Tus pagos se realizan vía Khipu.</span>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-white/50">
+                  Los pagos y renovaciones se gestionan con Khipu. Puedes actualizar tu plan cuando quieras.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "servicios" && (me.profileType === "PROFESSIONAL" || me.profileType === "SHOP") ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Catálogo y servicios</h2>
+              <form onSubmit={addServiceItem} className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Nombre del servicio</label>
+                  <input
+                    className="input"
+                    value={serviceTitle}
+                    onChange={(e) => setServiceTitle(e.target.value)}
+                    placeholder="Ej: Suite deluxe, masaje premium"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Categoría</label>
+                  <input
+                    className="input"
+                    value={serviceCategoryName}
+                    onChange={(e) => setServiceCategoryName(e.target.value)}
+                    placeholder="Motel, sexshop, spa..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm text-white/70">Precio (CLP)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    value={servicePrice}
+                    onChange={(e) => setServicePrice(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="20000"
+                  />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <label className="text-sm text-white/70">Descripción</label>
+                  <textarea
+                    className="input min-h-[120px]"
+                    value={serviceBody}
+                    onChange={(e) => setServiceBody(e.target.value)}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <button className="btn-primary" type="submit">
+                    Agregar al catálogo
                   </button>
                 </div>
+              </form>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                {serviceItems.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold">{item.title}</div>
+                        {item.category ? <div className="text-xs text-white/50">{item.category}</div> : null}
+                      </div>
+                      {item.price ? (
+                        <span className="text-xs text-white/70">${item.price.toLocaleString("es-CL")}</span>
+                      ) : null}
+                    </div>
+                    {item.description ? <p className="mt-2 text-sm text-white/70">{item.description}</p> : null}
+                    {item.media?.length ? (
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        {item.media.map((media) => (
+                          <div key={media.id} className="relative">
+                            {media.type === "IMAGE" ? (
+                              <img
+                                src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                                alt={item.title}
+                                className="h-20 w-full rounded-lg object-cover"
+                              />
+                            ) : (
+                              <video
+                                src={media.url.startsWith("http") ? media.url : `${API_URL}${media.url}`}
+                                className="h-20 w-full rounded-lg object-cover"
+                                muted
+                              />
+                            )}
+                            <button
+                              className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px]"
+                              onClick={() => deleteServiceMedia(item.id, media.id)}
+                              type="button"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 grid gap-2">
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={(e) => handleServiceMediaSelection(item.id, e.target.files)}
+                      />
+                      <button className="btn-secondary" type="button" onClick={() => uploadServiceMedia(item.id)}>
+                        Subir media
+                      </button>
+                    </div>
+                    <div className="mt-3">
+                      <button className="btn-secondary" type="button" onClick={() => deleteServiceItem(item.id)}>
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!serviceItems.length ? (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+                    Agrega tu primer servicio para aparecer en el catálogo.
+                  </div>
+                ) : null}
               </div>
-            ))}
-            {!serviceItems.length ? (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
-                Agrega tu primer servicio para aparecer en el catálogo.
+            </div>
+          ) : null}
+
+          {activeTab === "estadisticas" ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Estadísticas</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/60">Publicaciones</div>
+                  <div className="mt-2 text-xl font-semibold">{stats?.posts ?? 0}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/60">Mensajes recibidos</div>
+                  <div className="mt-2 text-xl font-semibold">{stats?.messagesReceived ?? 0}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/60">Suscriptores activos</div>
+                  <div className="mt-2 text-xl font-semibold">{stats?.subscribers ?? 0}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/60">Servicios publicados</div>
+                  <div className="mt-2 text-xl font-semibold">{stats?.services ?? 0}</div>
+                </div>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+
+          {activeTab === "notificaciones" ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Notificaciones</h2>
+              <div className="mt-4 grid gap-3">
+                {notifications.map((n) => (
+                  <div key={n.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">
+                          {n.type === "MESSAGE_RECEIVED"
+                            ? "Nuevo mensaje"
+                            : n.type === "SUBSCRIPTION_STARTED"
+                              ? "Nueva suscripción"
+                              : n.type === "POST_PUBLISHED"
+                                ? "Nuevo post publicado"
+                                : "Evento"}
+                        </div>
+                        <div className="text-xs text-white/50">
+                          {new Date(n.createdAt).toLocaleString("es-CL")}
+                        </div>
+                      </div>
+                      {!n.readAt ? (
+                        <button className="btn-secondary" onClick={() => markNotificationRead(n.id)}>
+                          Marcar leído
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+                {!notifications.length ? (
+                  <div className="text-sm text-white/60">Aún no tienes notificaciones.</div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "seguridad" ? (
+            <div className="card p-6 md:p-8">
+              <h2 className="text-lg font-semibold">Seguridad</h2>
+              <p className="mt-2 text-sm text-white/60">Cierra tu sesión en otros dispositivos.</p>
+              <div className="mt-4">
+                <button className="btn-primary" onClick={logout}>
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import argon2 from "argon2";
 import { prisma } from "../db";
 import { loginInputSchema, registerInputSchema } from "@uzeed/shared";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const authRouter = Router();
 
@@ -11,7 +12,7 @@ function addDays(base: Date, days: number): Date {
   return d;
 }
 
-authRouter.post("/register", async (req, res) => {
+authRouter.post("/register", asyncHandler(async (req, res) => {
   const parsed = registerInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
@@ -56,9 +57,9 @@ authRouter.post("/register", async (req, res) => {
   return res.json({
     user: { ...user, membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null }
   });
-});
+}));
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", asyncHandler(async (req, res) => {
   const parsed = loginInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
@@ -85,17 +86,17 @@ authRouter.post("/login", async (req, res) => {
       membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null
     }
   });
-});
+}));
 
-authRouter.post("/logout", async (req, res) => {
+authRouter.post("/logout", asyncHandler(async (req, res) => {
   req.session.destroy((err) => {
     if (err) return res.status(500).json({ error: "LOGOUT_FAILED" });
     res.clearCookie("uzeed_session");
     return res.json({ ok: true });
   });
-});
+}));
 
-authRouter.get("/me", async (req, res) => {
+authRouter.get("/me", asyncHandler(async (req, res) => {
   if (!req.session.userId) return res.json({ user: null });
   const user = await prisma.user.findUnique({
     where: { id: req.session.userId },
@@ -119,11 +120,12 @@ authRouter.get("/me", async (req, res) => {
       serviceDescription: true,
       city: true,
       latitude: true,
-      longitude: true
+      longitude: true,
+      allowFreeMessages: true
     }
   });
   if (!user) return res.json({ user: null });
   return res.json({
     user: { ...user, membershipExpiresAt: user.membershipExpiresAt?.toISOString() || null }
   });
-});
+}));

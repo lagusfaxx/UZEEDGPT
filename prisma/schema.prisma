@@ -44,6 +44,19 @@ enum MediaType {
   VIDEO
 }
 
+enum PostType {
+  IMAGE
+  VIDEO
+}
+
+enum NotificationType {
+  SUBSCRIPTION_STARTED
+  SUBSCRIPTION_RENEWED
+  MESSAGE_RECEIVED
+  POST_PUBLISHED
+  SERVICE_PUBLISHED
+}
+
 enum PaymentIntentPurpose {
   CREATOR_SUBSCRIPTION
   SHOP_PLAN
@@ -78,6 +91,7 @@ model User {
   subscriptionPrice   Int?              @default(2500)
   shopTrialEndsAt     DateTime?
   termsAcceptedAt     DateTime?
+  allowFreeMessages   Boolean           @default(false)
   role                Role              @default(USER)
   membershipExpiresAt DateTime?
   createdAt           DateTime          @default(now())
@@ -90,25 +104,27 @@ model User {
   profileSubscriptionsByMe ProfileSubscription[] @relation("ProfileSubscriber")
   services                 ServiceItem[]
   profileMedia             ProfileMedia[]
-  paymentIntents           PaymentIntent[]     @relation("SubscriberPaymentIntents")
-  profilePaymentIntents    PaymentIntent[]     @relation("ProfilePaymentIntents")
-  sentMessages             Message[]           @relation("SentMessages")
-  receivedMessages         Message[]           @relation("ReceivedMessages")
-  receivedRatings          ServiceRating[]     @relation("ProfileRatings")
-  givenRatings             ServiceRating[]     @relation("GivenRatings")
+  paymentIntents           PaymentIntent[]       @relation("SubscriberPaymentIntents")
+  profilePaymentIntents    PaymentIntent[]       @relation("ProfilePaymentIntents")
+  sentMessages             Message[]             @relation("SentMessages")
+  receivedMessages         Message[]             @relation("ReceivedMessages")
+  receivedRatings          ServiceRating[]       @relation("ProfileRatings")
+  givenRatings             ServiceRating[]       @relation("GivenRatings")
+  notifications            Notification[]
 }
 
 model Post {
-  id          String   @id @default(uuid()) @db.Uuid
-  authorId    String?  @db.Uuid
-  title       String
-  body        String
-  isPublic    Boolean  @default(false)
-  price       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid()) @db.Uuid
+  authorId  String?  @db.Uuid
+  title     String
+  body      String
+  isPublic  Boolean  @default(false)
+  price     Int      @default(0)
+  type      PostType @default(IMAGE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
   media  Media[]
 }
 
@@ -117,7 +133,42 @@ model Media {
   postId    String    @db.Uuid
   type      MediaType
   url       String
-@@ -142,50 +157,88 @@ model ProfileSubscription {
+  createdAt DateTime  @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @db.Uuid
+  khipuPaymentId   String?       @unique
+  amount           Int
+  status           PaymentStatus @default(PENDING)
+  membershipDays   Int           @default(30)
+  paymentUrl       String?
+  paidAt           DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model KhipuSubscription {
+  id                 String        @id @default(uuid()) @db.Uuid
+  userId             String        @db.Uuid
+  khipuSubscriptionId String?      @unique
+  status             PaymentStatus @default(PENDING)
+  amount             Int
+  frequency          String        @default("MONTHLY")
+  nextPaymentDate    DateTime?
+  subscriptionUrl    String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProfileSubscription {
   id           String   @id @default(uuid()) @db.Uuid
   subscriberId String   @db.Uuid
   profileId    String   @db.Uuid
@@ -142,7 +193,7 @@ model ServiceItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   media ServiceMedia[]
 }
 
@@ -166,29 +217,40 @@ model ServiceMedia {
   serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
 }
 
-model PaymentIntent {
-  id               String               @id @default(uuid()) @db.Uuid
-  subscriberId     String               @db.Uuid
-  profileId        String?              @db.Uuid
-  purpose          PaymentIntentPurpose
-  status           PaymentIntentStatus  @default(PENDING)
-  amount           Int
-  providerPaymentId String?
-  paymentUrl       String?
-  paidAt           DateTime?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
 
-  subscriber User @relation("SubscriberPaymentIntents", fields: [subscriberId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentIntent {
+  id                String               @id @default(uuid()) @db.Uuid
+  subscriberId      String               @db.Uuid
+  profileId         String?              @db.Uuid
+  purpose           PaymentIntentPurpose
+  status            PaymentIntentStatus  @default(PENDING)
+  amount            Int
+  providerPaymentId String?
+  paymentUrl        String?
+  paidAt            DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  subscriber User  @relation("SubscriberPaymentIntents", fields: [subscriberId], references: [id], onDelete: Cascade)
   profile    User? @relation("ProfilePaymentIntents", fields: [profileId], references: [id], onDelete: SetNull)
 }
 
 model Message {
-  id        String   @id @default(uuid()) @db.Uuid
-  fromId    String   @db.Uuid
-  toId      String   @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  fromId    String    @db.Uuid
+  toId      String    @db.Uuid
   body      String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   readAt    DateTime?
 
   from User @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
@@ -206,3 +268,4 @@ model ServiceRating {
   rater   User @relation("GivenRatings", fields: [raterId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, raterId])
+}

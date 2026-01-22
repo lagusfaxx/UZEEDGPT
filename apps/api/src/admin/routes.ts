@@ -6,10 +6,14 @@ import multer from "multer";
 import path from "path";
 import { config } from "../config";
 import { LocalStorageProvider } from "../storage/local";
+import { asyncHandler } from "../lib/asyncHandler";
 
 export const adminRouter = Router();
 
-const storageProvider = new LocalStorageProvider({ baseDir: config.storageDir, publicPathPrefix: "/uploads" });
+const storageProvider = new LocalStorageProvider({
+  baseDir: config.storageDir,
+  publicPathPrefix: `${config.apiUrl.replace(/\/$/, "")}/uploads`
+});
 
 const mediaFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
   const mime = (file.mimetype || "").toLowerCase();
@@ -38,16 +42,16 @@ const upload = multer({
 
 adminRouter.use(requireAdmin);
 
-adminRouter.get("/stats", async (_req, res) => {
+adminRouter.get("/stats", asyncHandler(async (_req, res) => {
   const [users, posts, payments] = await Promise.all([
     prisma.user.count(),
     prisma.post.count(),
     prisma.payment.count()
   ]);
   return res.json({ users, posts, payments });
-});
+}));
 
-adminRouter.get("/posts", async (_req, res) => {
+adminRouter.get("/posts", asyncHandler(async (_req, res) => {
   const posts = await prisma.post.findMany({ orderBy: { createdAt: "desc" }, include: { media: true } });
   return res.json({ posts: posts.map((p) => ({
     ...p,
@@ -55,9 +59,9 @@ adminRouter.get("/posts", async (_req, res) => {
     updatedAt: p.updatedAt.toISOString(),
     media: p.media.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
   })) });
-});
+}));
 
-adminRouter.post("/posts", upload.array("files", 10), async (req, res) => {
+adminRouter.post("/posts", upload.array("files", 10), asyncHandler(async (req, res) => {
   const { title, body, isPublic, price } = req.body as Record<string, string>;
   const payload = {
     title,
@@ -86,11 +90,15 @@ adminRouter.post("/posts", upload.array("files", 10), async (req, res) => {
     const url = storageProvider.publicUrl(file.filename);
     media.push(await prisma.media.create({ data: { postId: post.id, type, url } }));
   }
+  const hasVideo = media.some((m) => m.type === "VIDEO");
+  if (hasVideo) {
+    await prisma.post.update({ where: { id: post.id }, data: { type: "VIDEO" } });
+  }
 
   return res.json({ post: { ...post, media } });
-});
+}));
 
-adminRouter.put("/posts/:id", async (req, res) => {
+adminRouter.put("/posts/:id", asyncHandler(async (req, res) => {
   const parsed = CreatePostSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "VALIDATION", details: parsed.error.flatten() });
 
@@ -99,14 +107,14 @@ adminRouter.put("/posts/:id", async (req, res) => {
     data: parsed.data
   });
   return res.json({ post });
-});
+}));
 
-adminRouter.delete("/posts/:id", async (req, res) => {
+adminRouter.delete("/posts/:id", asyncHandler(async (req, res) => {
   await prisma.post.delete({ where: { id: req.params.id } });
   return res.json({ ok: true });
-});
+}));
 
-adminRouter.post("/posts/:id/media", upload.single("file"), async (req, res) => {
+adminRouter.post("/posts/:id/media", upload.single("file"), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "NO_FILE" });
   const mime = (req.file.mimetype || "").toLowerCase();
   const type = mime.startsWith("video/") ? "VIDEO" : "IMAGE";
@@ -115,6 +123,9 @@ adminRouter.post("/posts/:id/media", upload.single("file"), async (req, res) => 
   const media = await prisma.media.create({
     data: { postId: req.params.id, type, url }
   });
+  if (type === "VIDEO") {
+    await prisma.post.update({ where: { id: req.params.id }, data: { type: "VIDEO" } });
+  }
 
   return res.json({ media });
-});
+}));

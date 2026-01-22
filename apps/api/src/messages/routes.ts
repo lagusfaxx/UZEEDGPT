@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { requireAuth } from "../auth/middleware";
+import { asyncHandler } from "../lib/asyncHandler";
+import { canMessage } from "./canMessage";
 
 export const messagesRouter = Router();
 
-messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
+messagesRouter.get("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
   const me = req.session.userId!;
   const other = req.params.userId;
+  const allowed = await canMessage(me, other);
+  if (!allowed) return res.status(403).json({ error: "CHAT_NOT_ALLOWED" });
   const otherUser = await prisma.user.findUnique({
     where: { id: other },
     select: {
@@ -35,11 +39,13 @@ messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
     data: { readAt: new Date() }
   });
   return res.json({ messages, other: otherUser });
-});
+}));
 
-messagesRouter.post("/messages/:userId", requireAuth, async (req, res) => {
+messagesRouter.post("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
   const me = req.session.userId!;
   const other = req.params.userId;
+  const allowed = await canMessage(me, other);
+  if (!allowed) return res.status(403).json({ error: "CHAT_NOT_ALLOWED" });
   const body = String(req.body?.body || "").trim();
   if (!body) return res.status(400).json({ error: "EMPTY_MESSAGE" });
   const message = await prisma.message.create({
@@ -49,10 +55,17 @@ messagesRouter.post("/messages/:userId", requireAuth, async (req, res) => {
       body
     }
   });
+  await prisma.notification.create({
+    data: {
+      userId: other,
+      type: "MESSAGE_RECEIVED",
+      data: { fromId: me, messageId: message.id }
+    }
+  });
   return res.json({ message });
-});
+}));
 
-messagesRouter.get("/messages/inbox", requireAuth, async (req, res) => {
+messagesRouter.get("/messages/inbox", requireAuth, asyncHandler(async (req, res) => {
   const me = req.session.userId!;
   const messages = await prisma.message.findMany({
     where: {
@@ -102,4 +115,4 @@ messagesRouter.get("/messages/inbox", requireAuth, async (req, res) => {
   })).filter((c) => c.other && c.lastMessage);
 
   return res.json({ conversations });
-});
+}));
