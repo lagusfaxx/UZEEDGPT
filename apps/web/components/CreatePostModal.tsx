@@ -45,28 +45,28 @@ export default function CreatePostModal({ isOpen, onClose, onCreated, defaultMod
   }, [previews]);
 
   const handleFiles = (fileList: FileList | null) => {
-    if (!fileList || !fileList.length) {
-      setFiles(null);
-      setPreviews([]);
-      return;
-    }
-    const accepted = Array.from(fileList).every((file) => {
-      if (file.size > MAX_FILE_SIZE) return false;
-      if (mode === "IMAGE") return file.type.startsWith("image/");
-      return file.type.startsWith("video/");
-    });
-    if (!accepted) {
-      setError("Revisa el formato y tamaño del archivo. Máximo 100MB.");
-      return;
-    }
-    setError(null);
-    setFiles(fileList);
-    const nextPreviews = Array.from(fileList).map((file) => ({
-      url: URL.createObjectURL(file),
-      type: file.type.startsWith("video/") ? "VIDEO" : "IMAGE"
-    }));
-    setPreviews(nextPreviews);
-  };
+  if (!fileList || !fileList.length) {
+    setFiles(null);
+    setPreviews([]);
+    return;
+  }
+  const accepted = Array.from(fileList).every((file) => {
+    if (file.size > MAX_FILE_SIZE) return false;
+    if (mode === "IMAGE") return file.type.startsWith("image/");
+    return file.type.startsWith("video/");
+  });
+  if (!accepted) {
+    setError("Revisa el formato y tamaño del archivo. Máximo 100MB.");
+    return;
+  }
+  setError(null);
+  setFiles(fileList);
+  const nextPreviews: PreviewItem[] = Array.from(fileList).map((file) => ({
+    url: URL.createObjectURL(file),
+    type: file.type.startsWith("video/") ? "VIDEO" : "IMAGE"
+  }));
+  setPreviews(nextPreviews);
+};
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
