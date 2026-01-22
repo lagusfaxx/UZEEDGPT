@@ -1,10 +1,36 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "node:path";
 import { prisma } from "../db";
 import { requireAuth } from "../auth/middleware";
 import { asyncHandler } from "../lib/asyncHandler";
 import { canMessage } from "./canMessage";
+import { LocalStorageProvider } from "../storage/local";
+import { config } from "../config";
+import { validateUploadedFile } from "../lib/uploads";
 
 export const messagesRouter = Router();
+
+const storageProvider = new LocalStorageProvider({
+  baseDir: config.storageDir,
+  publicPathPrefix: `${config.apiUrl.replace(/\/$/, "")}/uploads`
+});
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      await storageProvider.ensureBaseDir();
+      cb(null, config.storageDir);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || "";
+      const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "");
+      const name = `${Date.now()}-${safeBase}${ext}`;
+      cb(null, name);
+    }
+  }),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
 
 messagesRouter.get("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
   const me = req.session.userId;
@@ -55,6 +81,34 @@ messagesRouter.post("/messages/:userId", requireAuth, asyncHandler(async (req, r
       fromId: me,
       toId: other,
       body
+    }
+  });
+  await prisma.notification.create({
+    data: {
+      userId: other,
+      type: "MESSAGE_RECEIVED",
+      data: { fromId: me, messageId: message.id }
+    }
+  });
+  return res.json({ message });
+}));
+
+messagesRouter.post("/messages/:userId/attachment", requireAuth, upload.single("file"), asyncHandler(async (req, res) => {
+  const me = req.session.userId;
+  if (!me) return res.status(401).json({ error: "UNAUTHENTICATED" });
+  const other = req.params.userId;
+  const allowed = await canMessage(me, other);
+  if (!allowed) return res.status(403).json({ error: "CHAT_NOT_ALLOWED" });
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: "NO_FILE" });
+  const { type } = await validateUploadedFile(file, "image");
+  if (type !== "IMAGE") return res.status(400).json({ error: "INVALID_FILE_TYPE" });
+  const url = storageProvider.publicUrl(file.filename);
+  const message = await prisma.message.create({
+    data: {
+      fromId: me,
+      toId: other,
+      body: `ATTACHMENT_IMAGE:${url}`
     }
   });
   await prisma.notification.create({

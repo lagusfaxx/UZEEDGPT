@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { apiFetch, API_URL } from "../../lib/api";
+import { apiFetch, resolveMediaUrl } from "../../lib/api";
+import CreatePostModal from "../../components/CreatePostModal";
+import FloatingCreateButton from "../../components/FloatingCreateButton";
 
 type VideoPost = {
   id: string;
@@ -17,6 +19,7 @@ type VideoPost = {
     avatarUrl: string | null;
   };
   paywalled: boolean;
+  isSubscribed: boolean;
 };
 
 type VideosResponse = { posts: VideoPost[]; nextPage: number | null };
@@ -29,6 +32,7 @@ export default function VideosClient() {
   const [nextPage, setNextPage] = useState<number | null>(1);
   const [muted, setMuted] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   async function load(page: number, mode: "reset" | "append") {
     if (mode === "append") setLoadingMore(true);
@@ -39,7 +43,7 @@ export default function VideosClient() {
       setNextPage(res.nextPage);
       setError(null);
     } catch (e: any) {
-      setError(e?.message || "No se pudieron cargar los videos");
+      setError(e?.message || "No se pudieron cargar los reels");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -94,17 +98,17 @@ export default function VideosClient() {
   return (
     <div className="grid gap-6">
       <div className="card p-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Videos</h1>
-            <p className="mt-1 text-sm text-white/70">Reels cortos con scroll vertical.</p>
+            <h1 className="text-2xl font-semibold">Reels</h1>
+            <p className="mt-1 text-sm text-white/70">Scroll vertical con autoplay y paywall.</p>
           </div>
           <div className="flex items-center gap-2">
             <button className="btn-secondary" onClick={() => setMuted((m) => !m)}>
               {muted ? "🔇 Silencio" : "🔊 Sonido"}
             </button>
             <Link className="btn-secondary" href="/feed">
-              Volver al Feed
+              Volver a Inicio
             </Link>
           </div>
         </div>
@@ -118,30 +122,28 @@ export default function VideosClient() {
 
       <div className="grid gap-6">
         {videos.map((post) => {
-          const video = post.media.find((m) => m.type === "VIDEO");
-          const videoUrl = video
-            ? video.url.startsWith("http")
-              ? video.url
-              : `${API_URL}${video.url}`
-            : null;
-          const avatar = post.author.avatarUrl
-            ? post.author.avatarUrl.startsWith("http")
-              ? post.author.avatarUrl
-              : `${API_URL}${post.author.avatarUrl}`
-            : null;
+          const video = post.media.find((m) => m.type === "VIDEO") || post.preview;
+          const videoUrl = resolveMediaUrl(video?.url);
+          const avatar = resolveMediaUrl(post.author.avatarUrl);
+
           return (
-            <div key={post.id} className="card p-5">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/10 overflow-hidden">
-                  {avatar ? <img src={avatar} alt={post.author.username} className="h-full w-full object-cover" /> : null}
+            <div key={post.id} className="card p-4 md:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-white/10 border border-white/10 overflow-hidden">
+                    {avatar ? <img src={avatar} alt={post.author.username} className="h-full w-full object-cover" /> : null}
+                  </div>
+                  <div>
+                    <div className="font-semibold">{post.author.displayName || post.author.username}</div>
+                    <div className="text-xs text-white/50">@{post.author.username}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold">{post.author.displayName || post.author.username}</div>
-                  <div className="text-xs text-white/50">@{post.author.username}</div>
-                </div>
+                <button className="btn-secondary" type="button">
+                  Seguir
+                </button>
               </div>
               {videoUrl ? (
-                <div className="mt-4 relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+                <div className="mt-4 relative h-[calc(100vh-320px)] min-h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
                   <video
                     data-autoplay="true"
                     src={videoUrl}
@@ -150,20 +152,49 @@ export default function VideosClient() {
                     playsInline
                     loop
                   />
+                  <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 text-sm">
+                    <div className="font-semibold">@{post.author.username}</div>
+                    <p className="text-white/80">{post.body}</p>
+                  </div>
                   {post.paywalled ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-center text-sm">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-center text-sm">
                       <div className="font-semibold">Video exclusivo</div>
                       <div className="text-xs text-white/70">Suscríbete para desbloquear</div>
+                      <button className="btn-primary mt-3">Suscribirme</button>
                     </div>
                   ) : null}
+                  <button
+                    className="absolute right-4 top-4 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-xs"
+                    onClick={() => setMuted((m) => !m)}
+                  >
+                    {muted ? "Sonido" : "Silenciar"}
+                  </button>
                 </div>
               ) : null}
-              <p className="mt-3 text-sm text-white/80">{post.body}</p>
             </div>
           );
         })}
       </div>
+
+      {!videos.length ? (
+        <div className="card p-8 text-center text-white/70">
+          <p className="text-lg font-semibold">Sube tu primer video</p>
+          <p className="mt-2 text-sm text-white/50">Comparte reels verticales y gana suscriptores.</p>
+          <button className="btn-primary mt-4" onClick={() => setModalOpen(true)}>
+            Crear reel
+          </button>
+        </div>
+      ) : null}
+
       <div ref={sentinelRef} className="h-10" />
+
+      <FloatingCreateButton onClick={() => setModalOpen(true)} />
+      <CreatePostModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreated={() => load(1, "reset")}
+        defaultMode="VIDEO"
+      />
     </div>
   );
 }

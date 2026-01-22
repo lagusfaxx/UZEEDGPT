@@ -225,7 +225,7 @@ export default function ProfilePage() {
               {profile.serviceCategory ? (
                 <p className="mt-2 text-xs text-white/50">{profile.serviceCategory}</p>
               ) : null}
-              {profile.address ? <p className="mt-1 text-xs text-white/40">{profile.address}</p> : null}
+              {isShop && profile.address ? <p className="mt-1 text-xs text-white/40">{profile.address}</p> : null}
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs text-white/60">

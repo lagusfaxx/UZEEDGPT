@@ -349,7 +349,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex gap-2">
               <Link className="btn-secondary" href="/feed">
-                Feed
+                Inicio
               </Link>
               {canPost ? (
                 <Link className="btn-secondary" href="/studio">
@@ -367,7 +367,7 @@ export default function DashboardPage() {
             {[
               { id: "perfil", label: "Perfil" },
               { id: "publicaciones", label: "Publicaciones" },
-              { id: "planes", label: "Suscripciones/Planes" },
+              ...(isCreator || isShop ? [{ id: "planes", label: "Suscripciones/Planes" }] : []),
               ...(me.profileType === "PROFESSIONAL" || me.profileType === "SHOP"
                 ? [{ id: "servicios", label: "Servicios" }]
                 : []),
@@ -516,14 +516,14 @@ export default function DashboardPage() {
             <div className="card p-6 md:p-8">
               <h2 className="text-lg font-semibold">Publicaciones</h2>
               <p className="mt-2 text-sm text-white/60">
-                Publica fotos y videos para el feed y la sección de videos.
+                Publica fotos y reels para Inicio y la sección de Reels.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link className="btn-primary" href="/studio">
                   Crear publicación
                 </Link>
                 <Link className="btn-secondary" href="/videos">
-                  Ver videos
+                  Ver reels
                 </Link>
               </div>
             </div>
@@ -571,11 +571,11 @@ export default function DashboardPage() {
                       {subscription ? "Renovar plan" : "Activar plan"}
                     </button>
                   ) : (
-                    <span className="text-xs text-white/60">Tus pagos se realizan vía Khipu.</span>
+                    <span className="text-xs text-white/60">Gestiona tu suscripción desde esta sección.</span>
                   )}
                 </div>
                 <p className="mt-2 text-xs text-white/50">
-                  Los pagos y renovaciones se gestionan con Khipu. Puedes actualizar tu plan cuando quieras.
+                  Revisaremos tus movimientos y el estado de tu plan desde aquí.
                 </p>
               </div>
             </div>

@@ -45,7 +45,7 @@ export default function StudioPage() {
       return;
     }
     setMe(m.user);
-    const r = await apiFetch<ListResp>("/creator/posts");
+    const r = await apiFetch<ListResp>("/posts/mine");
     setPosts(r.posts);
   }
 
@@ -75,7 +75,7 @@ export default function StudioPage() {
       if (files) {
         Array.from(files).forEach((f) => form.append("files", f));
       }
-      const res = await fetch(`${API_URL}/creator/posts`, {
+      const res = await fetch(`${API_URL}/posts/mine`, {
         method: "POST",
         credentials: "include",
         body: form
@@ -135,7 +135,7 @@ export default function StudioPage() {
 
   const saveEdit = async (postId: string) => {
     try {
-      await apiFetch(`/creator/posts/${postId}`, {
+      await apiFetch(`/posts/mine/${postId}`, {
         method: "PUT",
         body: JSON.stringify({ title: editTitle, body: editBody, isPublic: editPublic })
       });
@@ -148,7 +148,7 @@ export default function StudioPage() {
 
   const deletePost = async (postId: string) => {
     try {
-      await apiFetch(`/creator/posts/${postId}`, { method: "DELETE" });
+      await apiFetch(`/posts/mine/${postId}`, { method: "DELETE" });
       await load();
     } catch (e: any) {
       setErr(e?.message || "No se pudo eliminar el post");
