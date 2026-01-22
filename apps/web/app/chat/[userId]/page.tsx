@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { apiFetch, API_URL } from "../../../lib/api";
+import { apiFetch, API_URL, resolveMediaUrl } from "../../../lib/api";
 
 type Message = {
   id: string;
@@ -32,6 +32,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [other, setOther] = useState<ChatUser | null>(null);
   const [body, setBody] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,19 +52,47 @@ export default function ChatPage() {
 
   useEffect(() => {
     load()
-      .catch((e: any) => setError(e?.message || "Error"))
+      .catch((e: any) => {
+        if (e?.status === 403) {
+          setError("No puedes iniciar chat con este perfil. Suscríbete o espera a que habilite mensajes.");
+        } else {
+          setError(e?.message || "Error");
+        }
+      })
       .finally(() => setLoading(false));
   }, [userId]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!body.trim()) return;
-    const msg = await apiFetch<{ message: Message }>(`/messages/${userId}`, {
-      method: "POST",
-      body: JSON.stringify({ body })
-    });
-    setMessages((prev) => [...prev, msg.message]);
-    setBody("");
+    if (!body.trim() && !attachment) return;
+    try {
+      if (attachment) {
+        const form = new FormData();
+        form.append("file", attachment);
+        const res = await fetch(`${API_URL}/messages/${userId}/attachment`, {
+          method: "POST",
+          credentials: "include",
+          body: form
+        });
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`ATTACHMENT_FAILED ${res.status}: ${t}`);
+        }
+        const payload = (await res.json()) as { message: Message };
+        setMessages((prev) => [...prev, payload.message]);
+        setAttachment(null);
+      }
+      if (body.trim()) {
+        const msg = await apiFetch<{ message: Message }>(`/messages/${userId}`, {
+          method: "POST",
+          body: JSON.stringify({ body })
+        });
+        setMessages((prev) => [...prev, msg.message]);
+        setBody("");
+      }
+    } catch (e: any) {
+      setError(e?.message || "No se pudo enviar el mensaje");
+    }
   }
 
   if (loading) return <div className="text-white/70">Cargando chat...</div>;
@@ -75,8 +104,8 @@ export default function ChatPage() {
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-full bg-white/10 border border-white/10 overflow-hidden">
             {other?.avatarUrl ? (
-                <img
-                  src={other.avatarUrl.startsWith("http") ? other.avatarUrl : `${API_URL}${other.avatarUrl}`}
+              <img
+                src={resolveMediaUrl(other.avatarUrl) || ""}
                 alt={other.username}
                 className="h-full w-full object-cover"
               />
@@ -98,28 +127,42 @@ export default function ChatPage() {
 
       <div className="card p-6">
         <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-2">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`rounded-xl px-4 py-3 text-sm ${
-                m.fromId === me?.id ? "bg-purple-500/20 text-white ml-auto" : "bg-white/5 text-white/80"
-              }`}
-            >
-              <div>{m.body}</div>
-              <div className="mt-1 text-[10px] text-white/40">
-                {new Date(m.createdAt).toLocaleString("es-CL")}
+          {messages.map((m) => {
+            const isImage = m.body.startsWith("ATTACHMENT_IMAGE:");
+            const imageUrl = isImage ? resolveMediaUrl(m.body.replace("ATTACHMENT_IMAGE:", "")) : null;
+            return (
+              <div
+                key={m.id}
+                className={`rounded-xl px-4 py-3 text-sm ${
+                  m.fromId === me?.id ? "bg-purple-500/20 text-white ml-auto" : "bg-white/5 text-white/80"
+                }`}
+              >
+                {isImage && imageUrl ? (
+                  <img src={imageUrl} alt="Adjunto" className="max-w-[220px] rounded-lg border border-white/10" />
+                ) : (
+                  <div>{m.body}</div>
+                )}
+                <div className="mt-1 text-[10px] text-white/40">
+                  {new Date(m.createdAt).toLocaleString("es-CL")}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {!messages.length ? <div className="text-white/50">Aún no hay mensajes.</div> : null}
         </div>
 
-        <form onSubmit={send} className="mt-4 flex gap-3">
+        <form onSubmit={send} className="mt-4 flex flex-wrap gap-3 items-center">
           <input
             className="input flex-1"
             placeholder="Escribe tu mensaje..."
             value={body}
             onChange={(e) => setBody(e.target.value)}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+            className="text-xs text-white/70"
           />
           <button className="btn-primary">Enviar</button>
         </form>

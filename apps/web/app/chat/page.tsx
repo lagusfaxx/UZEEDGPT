@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiFetch, API_URL } from "../../lib/api";
+import { apiFetch, resolveMediaUrl } from "../../lib/api";
 
 type Conversation = {
   other: {
@@ -27,6 +27,7 @@ export default function ChatInboxPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     apiFetch<{ conversations: Conversation[] }>("/messages/inbox")
@@ -38,6 +39,11 @@ export default function ChatInboxPage() {
   if (loading) return <div className="text-white/70">Cargando mensajes...</div>;
   if (error) return <div className="text-red-200">{error}</div>;
 
+  const filtered = conversations.filter((c) => {
+    const target = `${c.other.displayName || ""} ${c.other.username}`.toLowerCase();
+    return target.includes(search.toLowerCase());
+  });
+
   return (
     <div className="grid gap-6">
       <div className="card p-6">
@@ -46,13 +52,17 @@ export default function ChatInboxPage() {
       </div>
 
       <div className="card p-6">
+        <div className="mb-4">
+          <input
+            className="input"
+            placeholder="Buscar chat..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <div className="grid gap-3">
-          {conversations.map((c) => {
-            const avatar = c.other.avatarUrl
-              ? c.other.avatarUrl.startsWith("http")
-                ? c.other.avatarUrl
-                : `${API_URL}${c.other.avatarUrl}`
-              : null;
+          {filtered.map((c) => {
+            const avatar = resolveMediaUrl(c.other.avatarUrl);
             return (
               <Link
                 key={c.other.id}
@@ -80,7 +90,7 @@ export default function ChatInboxPage() {
               </Link>
             );
           })}
-          {!conversations.length ? (
+          {!filtered.length ? (
             <div className="text-sm text-white/60">Aún no tienes conversaciones activas.</div>
           ) : null}
         </div>

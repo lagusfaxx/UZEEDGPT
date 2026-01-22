@@ -26,5 +26,14 @@ export async function canMessage(viewerId: string, targetId: string): Promise<bo
     return !!subscription;
   }
 
-  return false;
+  const existingConversation = await prisma.message.findFirst({
+    where: {
+      OR: [
+        { fromId: viewerId, toId: targetId },
+        { fromId: targetId, toId: viewerId }
+      ]
+    },
+    select: { id: true }
+  });
+  return !!existingConversation;
 }

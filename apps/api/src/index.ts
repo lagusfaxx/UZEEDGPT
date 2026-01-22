@@ -124,8 +124,20 @@ app.get("/version", (_req, res) => res.json({ sha: process.env.GIT_SHA || "unkno
 // static uploads
 app.use(
   "/uploads",
-  (_req, res, next) => {
+  (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && corsOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Request-Id");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
     next();
   },
   express.static(path.resolve(config.storageDir), { maxAge: "1h" })

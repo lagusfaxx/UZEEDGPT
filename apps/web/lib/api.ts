@@ -2,6 +2,12 @@ export type ApiError = { error: string; details?: any };
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
