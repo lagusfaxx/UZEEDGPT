@@ -7,7 +7,8 @@ import { canMessage } from "./canMessage";
 export const messagesRouter = Router();
 
 messagesRouter.get("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
+  const me = req.session.userId;
+  if (!me) return res.status(401).json({ error: "UNAUTHENTICATED" });
   const other = req.params.userId;
   const allowed = await canMessage(me, other);
   if (!allowed) return res.status(403).json({ error: "CHAT_NOT_ALLOWED" });
@@ -42,7 +43,8 @@ messagesRouter.get("/messages/:userId", requireAuth, asyncHandler(async (req, re
 }));
 
 messagesRouter.post("/messages/:userId", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
+  const me = req.session.userId;
+  if (!me) return res.status(401).json({ error: "UNAUTHENTICATED" });
   const other = req.params.userId;
   const allowed = await canMessage(me, other);
   if (!allowed) return res.status(403).json({ error: "CHAT_NOT_ALLOWED" });
@@ -66,7 +68,8 @@ messagesRouter.post("/messages/:userId", requireAuth, asyncHandler(async (req, r
 }));
 
 messagesRouter.get("/messages/inbox", requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.userId!;
+  const me = req.session.userId;
+  if (!me) return res.status(401).json({ error: "UNAUTHENTICATED" });
   const messages = await prisma.message.findMany({
     where: {
       OR: [{ fromId: me }, { toId: me }]
