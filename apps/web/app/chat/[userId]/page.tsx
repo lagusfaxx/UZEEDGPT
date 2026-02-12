@@ -36,22 +36,22 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    const [meResp, msgResp] = await Promise.all([
-      apiFetch<MeResponse>("/auth/me"),
-      apiFetch<{ messages: Message[]; other: ChatUser }>(`/messages/${userId}`)
-    ]);
-    if (!meResp.user) {
-      window.location.href = "/login";
-      return;
+  async function load(includeSession = false) {
+    const msgResp = await apiFetch<{ messages: Message[]; other: ChatUser }>(`/messages/${userId}`);
+    if (includeSession) {
+      const meResp = await apiFetch<MeResponse>("/auth/me");
+      if (!meResp.user) {
+        window.location.href = "/login";
+        return;
+      }
+      setMe(meResp.user);
     }
-    setMe(meResp.user);
     setMessages(msgResp.messages);
     setOther(msgResp.other);
   }
 
   useEffect(() => {
-    load()
+    load(true)
       .catch((e: any) => {
         if (e?.status === 403) {
           setError("No puedes iniciar chat con este perfil. Suscríbete o espera a que habilite mensajes.");
@@ -61,6 +61,18 @@ export default function ChatPage() {
       })
       .finally(() => setLoading(false));
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || error) return;
+    const intervalId = window.setInterval(() => {
+      load()
+        .catch(() => {
+          // Silent retry on polling failures so the chat doesn't break on transient issues.
+        });
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [userId, error]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
